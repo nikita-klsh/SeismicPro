@@ -1,0 +1,3 @@
+[submodule "seismicpro/batchflow"]
+	path = seismicpro/batchflow
+	url = https://github.com/analysiscenter/batchflow.git
