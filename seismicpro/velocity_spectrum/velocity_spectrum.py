@@ -17,7 +17,7 @@ from ..stacking_velocity import StackingVelocity, StackingVelocityField
 from ..utils import add_colorbar, set_ticks, set_text_formatting, get_first_defined
 from ..gather.utils.correction import apply_constant_velocity_nmo
 from ..const import DEFAULT_STACKING_VELOCITY
-
+from ..spectrum import Spectrum
 
 COHERENCY_FUNCS = {
     "stacked_amplitude": coherency_funcs.stacked_amplitude,
@@ -33,7 +33,7 @@ COHERENCY_FUNCS = {
 }
 
 
-class BaseVelocitySpectrum(SamplesContainer):
+class BaseVelocitySpectrum(Spectrum, SamplesContainer):
     """Base class for vertical velocity spectrum calculation.
 
     Implements general computation logic and a method for spectrum visualization.
@@ -65,15 +65,6 @@ class BaseVelocitySpectrum(SamplesContainer):
         Maximum allowable factor for stretch muter.
     """
 
-    def __init__(self, gather, window_size, mode='semblance', max_stretch_factor=np.inf):
-        self.gather = gather.copy()
-        self.half_win_size_samples = math.ceil((window_size / gather.sample_interval / 2))
-        self.max_stretch_factor = max_stretch_factor
-
-        self.coherency_func = COHERENCY_FUNCS.get(mode)
-        if self.coherency_func is None:
-            raise ValueError(f"Unknown mode {mode}, available modes are {COHERENCY_FUNCS.keys()}")
-
     @property
     def samples(self):
         """np.ndarray of floats: Recording time for each trace value. Measured in milliseconds."""
@@ -96,6 +87,10 @@ class BaseVelocitySpectrum(SamplesContainer):
         coordinates are non-unique for traces of the gather."""
         return self.gather.coords
 
+    @property
+    def velocities(self):
+        return self.x_values
+
     def get_time_velocity_by_indices(self, time_ix, velocity_ix):
         """Get time (in milliseconds) and velocity (in meters/milliseconds) by their indices (possibly non-integer) in
         velocity spectrum."""
@@ -113,7 +108,7 @@ class BaseVelocitySpectrum(SamplesContainer):
     @njit(nogil=True, fastmath=True, parallel=True)
     def calc_single_velocity_spectrum(coherency_func, gather_data, times, offsets, velocity, sample_interval, delay,
                                       half_win_size_samples, t_min_ix, t_max_ix, max_stretch_factor=np.inf,
-                                      interpolate=True, out=None):
+                                      interpolate=True, correction_func=None, correction_func_args=None, out=None):
         """Calculate velocity spectrum for a given range of zero-offset traveltimes and constant velocity.
 
         Parameters
@@ -156,9 +151,9 @@ class BaseVelocitySpectrum(SamplesContainer):
         t_win_size_min_ix = max(0, t_min_ix - half_win_size_samples)
         t_win_size_max_ix = min(len(times) - 1, t_max_ix + half_win_size_samples)
 
-        corrected_gather_data = apply_constant_velocity_nmo(gather_data, offsets, sample_interval, delay,
+        corrected_gather_data = correction_func(gather_data, offsets, sample_interval, delay,
                                                             times[t_win_size_min_ix: t_win_size_max_ix + 1], velocity,
-                                                            max_stretch_factor, interpolate)
+                                                            interpolate, np.nan, *correction_func_args)
         numerator, denominator = coherency_func(corrected_gather_data)
 
         if out is None:
@@ -171,65 +166,36 @@ class BaseVelocitySpectrum(SamplesContainer):
             out[t - t_min_ix] = np.sum(numerator[ix_from : ix_to]) / (np.sum(denominator[ix_from : ix_to]) + 1e-8)
         return out
 
-    def _plot(self, title=None, x_label=None, x_ticklabels=None, x_ticker=None, y_ticklabels=None, y_ticker=None,
-              grid=False, stacking_velocity_ix=None, velocity_bounds_ix=None, colorbar=True,
-              clip_threshold_quantile=0.99, n_levels=10, ax=None, **kwargs):
-        """Plot vertical velocity spectrum and, optionally, stacking velocity.
+    @staticmethod
+    @njit(nogil=True, fastmath=True, parallel=True)
+    def _calc_spectrum_numba(spectrum_func, coherency_func, gather_data, times, offsets, velocities, sample_interval,
+                             delay, half_win_size_samples, max_stretch_factor, interpolate, correction_func, correction_func_args):
+        """Parallelized and njitted method for vertical velocity spectrum calculation.
 
         Parameters
         ----------
-        title : str, optional, defaults to None
-            Plot title.
-        x_label : str, optional, defaults to None
-            The title of the x-axis.
-        x_ticklabels : list of str, optional, defaults to None
-            An array of labels for the x-axis.
-        x_ticker : dict, optional, defaults to None
-            Parameters for ticks and ticklabels formatting for the x-axis; see `.utils.set_ticks` for more details.
-        y_ticklabels : list of str, optional, defaults to None
-            An array of labels for the y-axis.
-        y_ticker : dict, optional, defaults to None
-            Parameters for ticks and ticklabels formatting for the y-axis; see `.utils.set_ticks` for more details.
-        grid : bool, optional, defaults to False
-            Specifies whether to draw a grid on the plot.
-        stacking_velocity_ix : tuple of two 1d np.ndarray, optional
-            Indices of times and velocities of a stacking velocity to show on the plot.
-        velocity_bounds_ix : tuple of three 1d np.ndarray, optional
-            Indices of times and velocities of left and right bounds. An area between these bounds will be highlighted
-            on the plot.
-        colorbar : bool or dict, optional, defaults to True
-            Whether to add a colorbar to the right of the velocity spectrum plot.
-            If `dict`, defines extra keyword arguments for `matplotlib.figure.Figure.colorbar`.
-        clip_threshold_quantile : float, optional, defaults to 0.99
-            Clip the velocity spectrum values by given quantile.
-        n_levels : int, optional, defaults to 10
-            The number of levels on the colorbar.
-        ax : matplotlib.axes.Axes, optional, defaults to None
-            Axes of the figure to plot on.
-        kwargs : misc, optional
-            Additional common keyword arguments for `x_ticker` and `y_tickers`.
+        spectrum_func : njitted callable
+            Base function for velocity spectrum calculation for a single velocity and a time range.
+        coherency_func : njitted callable
+            A function for hodograph coherency estimation.
+        other parameters : misc
+            Passed directly from class attributes or `__init__` arguments (except for `velocities` which are converted
+            from m/s to m/ms).
+
+        Returns
+        -------
+        velocity_spectrum : 2d np.ndarray
+            Array with vertical velocity spectrum values.
         """
-        # Cast text-related parameters to dicts and add text formatting parameters from kwargs to each of them
-        (title, x_ticker, y_ticker), kwargs = set_text_formatting(title, x_ticker, y_ticker, **kwargs)
+        velocity_spectrum = np.empty((gather_data.shape[1], len(velocities)), dtype=np.float32)
+        for j in prange(len(velocities)):  # pylint: disable=consider-using-enumerate
+            spectrum_func(coherency_func=coherency_func, gather_data=gather_data, times=times, offsets=offsets,
+                          velocity=velocities[j], sample_interval=sample_interval, delay=delay,
+                          half_win_size_samples=half_win_size_samples, t_min_ix=0, t_max_ix=gather_data.shape[1],
+                          max_stretch_factor=max_stretch_factor, interpolate=interpolate, out=velocity_spectrum[:, j],
+                          correction_func=correction_func, correction_func_args=correction_func_args)
+        return velocity_spectrum
 
-        cmap = plt.get_cmap('seismic')
-        level_values = np.linspace(0, np.quantile(self.velocity_spectrum, clip_threshold_quantile), n_levels)
-        norm = mcolors.BoundaryNorm(level_values, cmap.N, clip=True)
-        img = ax.imshow(self.velocity_spectrum, norm=norm, aspect='auto', cmap=cmap)
-        add_colorbar(ax, img, colorbar, y_ticker=y_ticker)
-        ax.set_title(**{"label": None, **title})
-
-        if stacking_velocity_ix is not None:
-            stacking_times_ix, stacking_velocities_ix = stacking_velocity_ix
-            ax.plot(stacking_velocities_ix, stacking_times_ix, c='#fafcc2', linewidth=2.5,
-                    marker="o", markevery=slice(1, -1))
-        if velocity_bounds_ix is not None:
-            ax.fill_betweenx(*velocity_bounds_ix, color="white", alpha=0.2)
-        if grid:
-            ax.grid(c='k')
-
-        set_ticks(ax, "x", x_label, x_ticklabels, **x_ticker)
-        set_ticks(ax, "y", "Time", y_ticklabels, **y_ticker)
 
     def plot(self, *args, interactive=False, **kwargs):
         """Plot velocity spectrum in interactive or non-interactive mode."""
@@ -357,71 +323,64 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     max_stretch_factor : float
         Maximum allowable factor for stretch muter.
     """
-    def __init__(self, gather, velocities=None, stacking_velocity=None, relative_margin=0.2, velocity_step=50,
-                 window_size=50, mode='semblance', max_stretch_factor=np.inf, interpolate=True):
-        super().__init__(gather, window_size, mode, max_stretch_factor)
+
+    @classmethod
+    def from_gather(cls, gather, velocities=None, stacking_velocity=None, relative_margin=0.2, velocity_step=50,
+                    window_size=50, mode='semblance', max_stretch_factor=np.inf, interpolate=True):
+            
+        half_win_size_samples = math.ceil((window_size / gather.sample_interval / 2))
+        max_stretch_factor = max_stretch_factor
+
+        coherency_func = COHERENCY_FUNCS.get(mode)
+        if coherency_func is None:
+            raise ValueError(f"Unknown mode {mode}, available modes are {COHERENCY_FUNCS.keys()}")
+    
         if stacking_velocity is None:
             stacking_velocity = DEFAULT_STACKING_VELOCITY
         if isinstance(stacking_velocity, StackingVelocityField):
-            stacking_velocity = stacking_velocity(self.coords)
+            stacking_velocity = stacking_velocity(gather.coords)
         if velocities is None:
-            velocities = self.get_velocity_range(stacking_velocity, relative_margin, velocity_step)
+            velocities = cls.get_velocity_range(gather.times, stacking_velocity, relative_margin, velocity_step)
         else:
             velocities = np.sort(velocities)
 
-        self.velocities = np.asarray(velocities, dtype=np.float32)  # m/s
-        self.stacking_velocity = stacking_velocity
-        self.relative_margin = relative_margin
+        velocities = np.asarray(velocities, dtype=np.float32)  # m/s
 
-        velocities_ms = self.velocities / 1000  # from m/s to m/ms
-        kwargs = {"spectrum_func": self.calc_single_velocity_spectrum, "coherency_func": self.coherency_func,
-                  "gather_data": self.gather.data, "times": self.times, "offsets": self.gather.offsets,
-                  "velocities": velocities_ms, "sample_interval": self.sample_interval, "delay": self.delay,
-                  "half_win_size_samples": self.half_win_size_samples, "max_stretch_factor": max_stretch_factor,
-                  "interpolate": interpolate}
-        self.velocity_spectrum = self._calc_spectrum_numba(**kwargs)
+        correction_func = apply_constant_velocity_nmo
+        correction_func_args = (max_stretch_factor, )
+
+        velocities_ms = velocities / 1000  # from m/s to m/ms
+        kwargs = {"spectrum_func": cls.calc_single_velocity_spectrum, "coherency_func": coherency_func,
+                  "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
+                  "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
+                  "half_win_size_samples": half_win_size_samples, "max_stretch_factor": max_stretch_factor,
+                  "interpolate": interpolate, 
+                  "correction_func": correction_func, "correction_func_args": correction_func_args}
+        
+        velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
+        spectrum = cls(velocity_spectrum, velocities, gather.times)
+        spectrum.gather = gather.copy()
+        spectrum.coherency_func = coherency_func
+        spectrum.half_win_size_samples = half_win_size_samples
+        spectrum.max_stretch_factor = max_stretch_factor
+        spectrum.stacking_velocity = stacking_velocity
+        spectrum.relative_margin = relative_margin
+        return spectrum
 
     @property
     def n_velocities(self):
         """int: The number of velocities the spectrum was calculated for."""
         return len(self.velocities)
 
+
     @staticmethod
-    @njit(nogil=True, fastmath=True, parallel=True)
-    def _calc_spectrum_numba(spectrum_func, coherency_func, gather_data, times, offsets, velocities, sample_interval,
-                             delay, half_win_size_samples, max_stretch_factor, interpolate):
-        """Parallelized and njitted method for vertical velocity spectrum calculation.
-
-        Parameters
-        ----------
-        spectrum_func : njitted callable
-            Base function for velocity spectrum calculation for a single velocity and a time range.
-        coherency_func : njitted callable
-            A function for hodograph coherency estimation.
-        other parameters : misc
-            Passed directly from class attributes or `__init__` arguments (except for `velocities` which are converted
-            from m/s to m/ms).
-
-        Returns
-        -------
-        velocity_spectrum : 2d np.ndarray
-            Array with vertical velocity spectrum values.
-        """
-        velocity_spectrum = np.empty((gather_data.shape[1], len(velocities)), dtype=np.float32)
-        for j in prange(len(velocities)):  # pylint: disable=consider-using-enumerate
-            spectrum_func(coherency_func=coherency_func, gather_data=gather_data, times=times, offsets=offsets,
-                          velocity=velocities[j], sample_interval=sample_interval, delay=delay,
-                          half_win_size_samples=half_win_size_samples, t_min_ix=0, t_max_ix=gather_data.shape[1],
-                          max_stretch_factor=max_stretch_factor, interpolate=interpolate, out=velocity_spectrum[:, j])
-        return velocity_spectrum
-
-    def get_velocity_range(self, stacking_velocity, relative_margin, velocity_step):
+    def get_velocity_range(times, stacking_velocity, relative_margin, velocity_step):
         """Return an array of stacking velocities for spectrum calculation:
         1. First `stacking_velocity` is evaluated for gather times to estimate the velocity range being examined.
         2. Then the range is additionally extended by `relative_margin` * 100% in both directions.
         3. The resulting velocities are then evenly sampled from this range with a step of `velocity_step`.
         """
-        interpolated_velocities = stacking_velocity(self.times)
+        interpolated_velocities = stacking_velocity(times)
         min_velocity = np.min(interpolated_velocities) * (1 - relative_margin)
         max_velocity = np.max(interpolated_velocities) * (1 + relative_margin)
         n_velocities = math.ceil((max_velocity - min_velocity) / velocity_step) + 1
@@ -465,8 +424,8 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
                 right_velocities_ix = np.interp(right_velocities, self.velocities, np.arange(self.n_velocities))
                 velocity_bounds_ix = (bounds_times_ix, left_velocities_ix, right_velocities_ix)
 
-        super()._plot(title=title, x_label="Velocity, m/s", x_ticklabels=self.velocities,
-                      x_ticker=x_ticker, y_ticklabels=self.times, y_ticker=y_ticker, ax=ax, grid=grid,
+        Spectrum.plot(self, title=title, x_label="Velocity, m/s", x_ticklabels=self.x_values,
+                      x_ticker=x_ticker, y_ticklabels=self.y_values, y_ticker=y_ticker, ax=ax, grid=grid,
                       stacking_velocity_ix=stacking_velocity_ix, velocity_bounds_ix=velocity_bounds_ix,
                       colorbar=colorbar, **kwargs)
         return self
@@ -664,24 +623,42 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     max_stretch_factor: float
         Maximum allowable factor for stretch muter.
     """
-    def __init__(self, gather, stacking_velocity, relative_margin=0.2, velocity_step=25, window_size=50,
+    @classmethod
+    def from_gather(cls, gather, stacking_velocity, relative_margin=0.2, velocity_step=25, window_size=50,
                  mode='semblance', max_stretch_factor=np.inf, interpolate=True):
-        super().__init__(gather, window_size, mode, max_stretch_factor)
+        
+        self.half_win_size_samples = math.ceil((window_size / gather.sample_interval / 2))
+        self.max_stretch_factor = max_stretch_factor
+
+        self.coherency_func = COHERENCY_FUNCS.get(mode)
+        if self.coherency_func is None:
+            raise ValueError(f"Unknown mode {mode}, available modes are {COHERENCY_FUNCS.keys()}")
+        
         if isinstance(stacking_velocity, StackingVelocityField):
             stacking_velocity = stacking_velocity(self.coords)
         self.stacking_velocity = stacking_velocity
         self.relative_margin = relative_margin
 
+        self.correction_func = apply_constant_velocity_nmo
+        from numba.typed import Dict
+        self.correction_func_args = Dict()
+        self.correction_func_args['max_stretch_factor'] = max_stretch_factor 
+
         stacking_velocities = self.stacking_velocity(self.times)
         kwargs = {"spectrum_func": self.calc_single_velocity_spectrum, "coherency_func": self.coherency_func,
-                  "gather_data": self.gather.data, "times": self.times, "offsets": self.gather.offsets,
+                  "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
                   "stacking_velocities": stacking_velocities, "relative_margin": relative_margin,
-                  "velocity_step": velocity_step, "sample_interval": self.sample_interval, "delay": self.delay,
+                  "velocity_step": velocity_step, "sample_interval": gather.sample_interval, "delay": gather.delay,
                   "half_win_size_samples": self.half_win_size_samples, "max_stretch_factor": max_stretch_factor,
-                  "interpolate": interpolate}
-        self.velocity_spectrum = self._calc_spectrum_numba(**kwargs)
-        self.margins, self.margin_step = np.linspace(-self.relative_margin, self.relative_margin, self.n_margins,
+                  "interpolate": interpolate, 
+                  "correction_func": self.correction_func, "correction_func_args": self.correction_func_args}
+        
+        velocity_spectrum = self._calc_spectrum_numba(**kwargs)
+        spectrum = cls(velocity_spectrum, velocities, gather.times)
+        spectrum.gather = gather.copy()
+        spectrum.margins, spectrum.margin_step = np.linspace(-self.relative_margin, self.relative_margin, self.n_margins,
                                                      retstep=True)
+        return spectrum
 
     @property
     def n_margins(self):
@@ -835,3 +812,49 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         if title is None:
             title = f"Residual Velocity Spectrum \n Coherency func: {self.coherency_func.__name__}"
         return super().plot(interactive=interactive, acceptable_margin=acceptable_margin, title=title, **kwargs)
+
+
+from ..gather.utils.correction import get_hodograph
+class SlantStack(BaseVelocitySpectrum):
+
+    @classmethod
+    def from_gather(cls, gather, velocities):
+        half_win_size_samples = 1
+        coherency_func = coherency_funcs.stacked_amplitude
+        
+        velocities = np.sort(velocities)
+        velocities = np.asarray(velocities, dtype=np.float32)  # m/s
+    
+        velocities_ms = velocities / 1000  # from m/s to m/ms
+    
+        kwargs = {"spectrum_func": cls.calc_single_velocity_spectrum, "coherency_func": coherency_func,
+                  "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
+                  "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
+                  "half_win_size_samples": half_win_size_samples, "max_stretch_factor": np.inf,
+                  "interpolate": True, 
+                  "correction_func": cls.apply_full_lmo, "correction_func_args": ()}
+
+        velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
+
+        spectrum =  cls(velocity_spectrum, velocities, gather.times)
+        spectrum.gather = gather.copy()
+        spectrum.coherency_func = coherency_func
+        spectrum.correction_func = cls.apply_full_lmo
+        spectrum.correction_func_args = ()
+        return spectrum
+
+
+
+    @staticmethod
+    @njit(parallel=True)
+    def apply_full_lmo(gather_data, offsets, sample_interval, delay, times, velocity, interpolate=True, fill_value=np.nan):
+        corrected_gather_data = np.full_like(gather_data, fill_value=fill_value)
+        for i in prange(times.shape[0]):
+            hodograph_times = times[i] + (offsets / velocity)
+            get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times, fill_value=fill_value, interpolate=True, out=corrected_gather_data[:, i])
+        return corrected_gather_data
+
+
+
+
+

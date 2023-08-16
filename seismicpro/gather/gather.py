@@ -750,8 +750,24 @@ class Gather(TraceContainer, SamplesContainer):
         return self
 
     #------------------------------------------------------------------------#
+    #             Dispersion Spectrum calculation method                     #
+    #------------------------------------------------------------------------#
+
+    @batch_method(target="threads", copy_src=False)
+    def calculate_dispersion_spectrum(self, velocities, fmax=None, spectrum_type='fv', complex_to_real=np.abs, **kwargs):
+        from ..surface_waves import DispersionSpectrum
+        return DispersionSpectrum.from_gather(self, velocities, fmax, spectrum_type, complex_to_real, **kwargs)
+
+
+    #------------------------------------------------------------------------#
     #             Vertical Velocity Spectrum calculation methods             #
     #------------------------------------------------------------------------#
+    
+    @batch_method(target="threads", copy_src=False)
+    def calculate_slant_stack(self, velocities):
+        from ..velocity_spectrum import SlantStack
+        return SlantStack.from_gather(self, velocities)
+
 
     @batch_method(target="for", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_vertical_velocity_spectrum(self, velocities=None, stacking_velocity=None, relative_margin=0.2,
@@ -820,7 +836,7 @@ class Gather(TraceContainer, SamplesContainer):
         vertical_velocity_spectrum : VerticalVelocitySpectrum
             Calculated vertical velocity spectrum.
         """
-        return VerticalVelocitySpectrum(gather=self, velocities=velocities, stacking_velocity=stacking_velocity,
+        return VerticalVelocitySpectrum.from_gather(gather=self, velocities=velocities, stacking_velocity=stacking_velocity,
                                         relative_margin=relative_margin, velocity_step=velocity_step,
                                         window_size=window_size, mode=mode, max_stretch_factor=max_stretch_factor,
                                         interpolate=interpolate)

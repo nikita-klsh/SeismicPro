@@ -61,7 +61,7 @@ def get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times,
 
 @njit(nogil=True, parallel=True)
 def apply_constant_velocity_nmo(gather_data, offsets, sample_interval, delay, times, velocity,
-                                max_stretch_factor=np.inf, interpolate=True, fill_value=np.nan):
+                                interpolate=True, fill_value=np.nan, max_stretch_factor=np.inf):
     """Perform gather normal moveout correction with the same velocity used for all times.
 
     This method is identical to `apply_nmo` when all elements of `velocities` are equal to `velocity` and all elements

@@ -363,7 +363,7 @@ class ScatterMap(BaseMetricMap):
         coords_x, coords_y = map_data.index.to_frame(index=False).to_numpy().T
         ax.set_xlim(*calculate_axis_limits(coords_x))
         ax.set_ylim(*calculate_axis_limits(coords_y))
-        return ax.scatter(coords_x, coords_y, c=map_data, **kwargs)
+        return ax.scatter(coords_x, coords_y, **{**dict(c=map_data), **kwargs})
 
 
 class BinarizedMap(BaseMetricMap):

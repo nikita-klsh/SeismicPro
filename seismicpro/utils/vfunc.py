@@ -1,6 +1,7 @@
 """Utilities for processing of vertical functions"""
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from .general_utils import to_list
 from .interpolation import interp1d
@@ -211,3 +212,9 @@ class VFUNC:
     def __call__(self, data_x):
         """Evaluate the vertical function at given points."""
         return self.interpolator(data_x)
+
+    def plot(self, ax=None):
+        if ax is None:
+            _, ax = plt.subplots()
+        ax.plot(self.data_x, self.data_y)
+        ax.invert_yaxis()
