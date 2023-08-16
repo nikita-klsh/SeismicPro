@@ -12,8 +12,8 @@
 [![License](https://img.shields.io/github/license/analysiscenter/batchflow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Python](https://img.shields.io/badge/python-3.8-blue.svg)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-1.8-orange.svg)](https://pytorch.org)
-[![Status](https://github.com/gazprom-neft/SeismicPro/actions/workflows/status.yml/badge.svg?branch=master&event=push)](https://github.com/gazprom-neft/SeismicPro/actions/workflows/status.yml)
-[![Test installation](https://github.com/gazprom-neft/SeismicPro/actions/workflows/test-install.yml/badge.svg?branch=master&event=push)](https://github.com/gazprom-neft/SeismicPro/actions/workflows/test-install.yml)
+[![Status](https://github.com/analysiscenter/SeismicPro/actions/workflows/status.yml/badge.svg?branch=master&event=push)](https://github.com/analysiscenter/SeismicPro/actions/workflows/status.yml)
+[![Test installation](https://github.com/analysiscenter/SeismicPro/actions/workflows/test-install.yml/badge.svg?branch=master&event=push)](https://github.com/analysiscenter/SeismicPro/actions/workflows/test-install.yml)
 
 </div>
 
@@ -31,7 +31,7 @@ Main features:
 
 ## Installation
 
-> `SeismicPro` module is in the beta stage. Your suggestions and improvements via [issues](https://github.com/gazprom-neft/SeismicPro/issues) are very welcome.
+> `SeismicPro` module is in the beta stage. Your suggestions and improvements via [issues](https://github.com/analysiscenter/SeismicPro/issues) are very welcome.
 
 > Note that the [Benchmark](./benchmark/) module may not work on Windows due to dependency issues. Use it with caution.
 
@@ -39,15 +39,15 @@ Main features:
 
 * Installation as a python package using [pip](https://pip.pypa.io/en/stable/):
     ```bash
-    pip3 install git+https://github.com/gazprom-neft/SeismicPro.git
+    pip3 install git+https://github.com/analysiscenter/SeismicPro.git
     ```
 * Installation as a python package using [pipenv](https://docs.pipenv.org/):
     ```bash
-    pipenv install git+https://github.com/gazprom-neft/SeismicPro.git#egg=SeismicPro
+    pipenv install git+https://github.com/analysiscenter/SeismicPro.git#egg=SeismicPro
     ```
 * Cloning the project repository:
     ```bash
-    git clone https://github.com/gazprom-neft/SeismicPro.git
+    git clone https://github.com/analysiscenter/SeismicPro.git
     ```
 
 ## Getting Started
@@ -120,12 +120,12 @@ You can get more familiar with the framework and its functionality by reading [S
 
 Please cite `SeismicPro` in your publications if it helps your research.
 
-    Khudorozhkov R., Illarionov E., Broilovskiy A., Kalashnikov N., Podvyaznikov D., Arefina A., Kuvaev A., SeismicPro library for seismic data processing and ML models training and inference. 2019.
+    Khudorozhkov R., Kuvaev A., Broilovskiy A., Kalashnikov N., Podvyaznikov D., Altynova A. SeismicPro: bringing AI solutions to Seismic Processing. 2021.
 
 ```
 @misc{seismicpro_2019,
-  author       = {R. Khudorozhkov and E. Illarionov and A. Broilovskiy and N. Kalashnikov and D. Podvyaznikov and A. Arefina and A. Kuvaev},
-  title        = {SeismicPro library for seismic data processing and ML models training and inference},
-  year         = 2019
+  author       = {R. Khudorozhkov and A. Kuvaev and A. Broilovskiy and N. Kalashnikov and D. Podvyaznikov and A. Altynova},
+  title        = {SeismicPro: bringing AI solutions to Seismic Processing},
+  year         = 2021
 }
 ```
