@@ -255,8 +255,9 @@ class LayeredModel:
         dist_to_layers = high_elevations.reshape(-1, 1) - layer_elevations
         dist_to_layers[dist_to_layers < 0] = 0
         vertical_pass_dist = torch.diff(dist_to_layers, prepend=torch.zeros_like(layer_elevations[:, :1]), axis=1)
-        vertical_pass_dist = torch.column_stack([vertical_pass_dist, total_pass_dist])
+        vertical_pass_dist = torch.column_stack([vertical_pass_dist, total_pass_dist + 1])
 
+        # Overflow is guaranteed to occur since vertical_pass_dist is padded with a value greater than total_pass_dist
         overflow_mask = vertical_pass_dist.cumsum(axis=1) > total_pass_dist.reshape(-1, 1)
         vertical_pass_dist[overflow_mask] = 0
         residual_pass_dist = total_pass_dist - vertical_pass_dist.sum(axis=1)
