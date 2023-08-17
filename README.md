@@ -123,7 +123,7 @@ Please cite `SeismicPro` in your publications if it helps your research.
     Khudorozhkov R., Kuvaev A., Broilovskiy A., Kalashnikov N., Podvyaznikov D., Altynova A. SeismicPro: bringing AI solutions to Seismic Processing. 2021.
 
 ```
-@misc{seismicpro_2019,
+@misc{seismicpro_2021,
   author       = {R. Khudorozhkov and A. Kuvaev and A. Broilovskiy and N. Kalashnikov and D. Podvyaznikov and A. Altynova},
   title        = {SeismicPro: bringing AI solutions to Seismic Processing},
   year         = 2021
