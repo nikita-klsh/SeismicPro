@@ -5,6 +5,7 @@ import polars as pl
 import matplotlib.pyplot as plt
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from tqdm.auto import tqdm
 
 from .profile_plot import ProfilePlot
 from ..statics import Statics
@@ -489,8 +490,9 @@ class LayeredModel:
         reg_tensors = self.prepare_regularization_tensors(dataset, n_reg_neighbors, velocities_reg_coef,
                                                           elevations_reg_coef, thicknesses_reg_coef)
         loader = dataset.create_train_loader(batch_size=batch_size, n_epochs=n_epochs, shuffle=True, drop_last=True,
-                                             device=self.device, bar=bar)
-        for *params, target_traveltimes in loader:
+                                             device=self.device)
+        tqdm_loader = tqdm(loader, desc="Iterations of model fitting", disable=not bar)
+        for *params, target_traveltimes in tqdm_loader:
             prediction_traveltimes = self._estimate_traveltimes(*params)
             loss = torch.abs(prediction_traveltimes - target_traveltimes).mean()
 
@@ -501,8 +503,9 @@ class LayeredModel:
             receiver_weights = params[7]
             sensor_tensors = (source_indices, source_weights, receiver_indices, receiver_weights)
             velocities_reg, elevations_reg, thicknesses_reg = self.calculate_regularizer(*sensor_tensors, *reg_tensors)
+            reg = velocities_reg + elevations_reg + thicknesses_reg
 
-            total_loss = loss + elevations_reg + thicknesses_reg + velocities_reg
+            total_loss = loss + reg
             self.optimizer.zero_grad()
             total_loss.backward()
             self.optimizer.step()
@@ -514,13 +517,19 @@ class LayeredModel:
             self.elevations_reg_hist.append(elevations_reg.item())
             self.thicknesses_reg_hist.append(thicknesses_reg.item())
 
+            total_loss_str = f"Total loss: {total_loss.item():.3f}"
+            model_loss_str = f"Model loss: {loss.item():.3f}"
+            reg_loss_str = f"Regularizer: {reg.item():.3f}"
+            tqdm_loader.set_postfix_str(f"{total_loss_str}, {model_loss_str}, {reg_loss_str}", refresh=False)
+
         self.interpolate_unused_points(dataset)
 
     def predict(self, dataset, batch_size=1000000, bar=True, predicted_first_breaks_header=None):
-        loader = dataset.create_predict_loader(batch_size=batch_size, device=self.device, bar=bar)
+        loader = dataset.create_predict_loader(batch_size=batch_size, device=self.device)
+        tqdm_loader = tqdm(loader, desc="Iterations of model inference", disable=not bar)
         with torch.no_grad():
             pred_traveltimes = [(self._estimate_traveltimes(*params) - traveltime_corrections).cpu()
-                                for *params, traveltime_corrections in loader]
+                                for *params, traveltime_corrections in tqdm_loader]
         pred_traveltimes = torch.cat(pred_traveltimes).numpy()
         dataset.pred_traveltimes = np.maximum(pred_traveltimes, 0)
 

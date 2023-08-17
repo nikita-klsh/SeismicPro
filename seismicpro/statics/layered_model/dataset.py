@@ -4,7 +4,6 @@ import torch
 import numpy as np
 import polars as pl
 from numba import njit, prange
-from tqdm.auto import tqdm
 
 from .dataloader import TensorDataLoader
 from ..dataset import TravelTimeDataset
@@ -137,20 +136,20 @@ class LayeredModelTravelTimeDataset(TravelTimeDataset):
 
     # Loader creation
 
-    def create_train_loader(self, batch_size, n_epochs, shuffle=True, drop_last=True, device=None, bar=True):
+    def create_train_loader(self, batch_size, n_epochs, shuffle=True, drop_last=True, device=None):
         train_tensors = [self.source_coords, self.source_elevations, self.source_indices, self.source_weights,
                          self.receiver_coords, self.receiver_elevations, self.receiver_indices, self.receiver_weights,
                          self.mean_slowness_indices, self.mean_slowness_weights, self.target_traveltimes]
         train_tensors = [torch.from_numpy(tensor) for tensor in train_tensors]
         loader = TensorDataLoader(*train_tensors, batch_size=batch_size, n_epochs=n_epochs,
                                   shuffle=shuffle, drop_last=drop_last, device=device)
-        return tqdm(loader, desc="Iterations of model fitting", disable=not bar)
+        return loader
 
-    def create_predict_loader(self, batch_size, device=None, bar=True):
+    def create_predict_loader(self, batch_size, device=None):
         pred_tensors = [self.source_coords, self.source_elevations, self.source_indices, self.source_weights,
                         self.receiver_coords, self.receiver_elevations, self.receiver_indices, self.receiver_weights,
                         self.mean_slowness_indices, self.mean_slowness_weights, self.traveltime_corrections]
         pred_tensors = [torch.from_numpy(tensor) for tensor in pred_tensors]
         loader = TensorDataLoader(*pred_tensors, batch_size=batch_size, n_epochs=1, shuffle=False, drop_last=False,
                                   device=device)
-        return tqdm(loader, desc="Iterations of model inference", disable=not bar)
+        return loader
