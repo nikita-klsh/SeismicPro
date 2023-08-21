@@ -19,6 +19,7 @@ from ..gather.utils.correction import apply_constant_velocity_nmo
 from ..const import DEFAULT_STACKING_VELOCITY
 from ..spectrum import Spectrum
 
+
 COHERENCY_FUNCS = {
     "stacked_amplitude": coherency_funcs.stacked_amplitude,
     "S": coherency_funcs.stacked_amplitude,
@@ -843,8 +844,6 @@ class SlantStack(BaseVelocitySpectrum):
         spectrum.correction_func_args = ()
         return spectrum
 
-
-
     @staticmethod
     @njit(parallel=True)
     def apply_full_lmo(gather_data, offsets, sample_interval, delay, times, velocity, interpolate=True, fill_value=np.nan):
@@ -855,6 +854,8 @@ class SlantStack(BaseVelocitySpectrum):
         return corrected_gather_data
 
 
-
-
+    @plotter(figsize=(10, 9), args_to_unpack="stacking_velocity")
+    def plot(self, title='Slant Stack', **kwargs):
+        Spectrum.plot(self, title=title, x_label="Velocity, m/s", **kwargs)
+        return self
 

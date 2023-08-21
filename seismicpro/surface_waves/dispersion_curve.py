@@ -13,7 +13,9 @@ from ..stacking_velocity.velocity_model import calculate_stacking_velocity
 class DispersionCurve(VFUNC):
 
     def __init__(self, frequencies, velocities, coords=None):
-        super().__init__(frequencies, velocities, coords)
+        ix = np.argsort(frequencies)[::-1]
+        super().__init__(frequencies[ix], velocities[ix], coords)
+        self.bounds = None
 
     @property
     def frequencies(self):
@@ -30,28 +32,11 @@ class DispersionCurve(VFUNC):
         """1d np.ndarray: An array with wavelengths. Measured in meters."""
         return self.velocities / self.frequencies
 
-    
-    @batch_method(target="for", args_to_unpack="init", copy_src=False)
-    def invert(self, fmin=None, fmax=None, dz=0.005, bounds=(0.1, 5), vpvs=2.5, kd=2):
-        elevations = np.arange(0, d.max() + dz, dz)
+    @property
+    def periods(self):
+        return 1 / self.frequencies
+
         
-        target_dispersion_curve = self.copy().filter(fmin, fmax)
-        vs_law = VelocityLaw.from_dispersion_curve(target_dispersion_curve, kd, vpvs)
-        vs = vs_law(elevations)
-        vp = vs * vpvs
-        rho = vp * 0.32 + 0.77
-        thickness = np.array([dz] * len(elevations))
-
-
-        dv = 0.3
-        boarders = np.random.choice([-1, 1], (len(vs), len(vs)))
-        initial_simplex = np.concatenate([vs.reshape(1, -1), vs + dv * boarders], axis=0)
-
-        scipy_res = minimize(cls.loss, args=(velocity, period, thickness, rho, vpvs), x0=vs, bounds=[bounds] * len(x0), 
-                             method='Nelder-Mead', tol=0.010, options=dict(maxfev=2000, initial_simplex=initial_simplex))
-    
-        return VelocityLaw(elevations, scipy_res.x * 1000, coords=self.coords)
-    
     @classmethod
     def from_dispersion_spectrum(cls, spectrum, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
                                       acceleration_bounds="adaptive", times_step=100, max_n_skips=2):
@@ -94,23 +79,57 @@ class DispersionCurve(VFUNC):
         """
         return np.maximum(super().__call__(frequencies), 0)
 
+    @batch_method(target="for", args_to_unpack="init", copy_src=False)
+    def invert(self, fmin=None, fmax=None, dz=0.005, bounds=(0.1, 5), vpvs=2.5, kd=2, alpha=0.005):
+        target_dispersion_curve = self.copy()
+        target_dispersion_curve.filter(fmin, fmax)
 
-    @staticmethod
-    def func(x, period, thickness, rho, poison=2, dc=0.005):
-        return surf96(period, thickness, x * poison, x, rho, mode=0, itype=0, ifunc=3, dc=dc)
+        vs_law = VelocityLaw.from_dispersion_curve(target_dispersion_curve, kd, vpvs)
+        elevations = np.arange(0, vs_law.depths.max() / 1000 + dz, dz)
+        vs = vs_law(elevations) / 1000
+        vp = vs * vpvs
+        rho = vp * 0.32 + 0.77
+        thickness = np.array([dz] * len(elevations))
+
+        dv = 0.3
+        boarders = np.random.choice([-1, 1], (len(vs), len(vs)))
+        initial_simplex = np.concatenate([vs.reshape(1, -1), vs + dv * boarders], axis=0)
+
+        from functools import partial
+        loss = partial(self.loss, alpha=alpha, poison=vpvs)
+        scipy_res = minimize(loss, args=(target_dispersion_curve.velocities / 1000, target_dispersion_curve.periods, thickness), x0=vs, bounds=[bounds] * len(vs), 
+                             method='Nelder-Mead', tol=0.010, options=dict(maxfev=2000, initial_simplex=initial_simplex))
+        law = VelocityLaw(elevations, scipy_res.x[::-1] * 1000, coords=self.coords)
+        law.produced_by = target_dispersion_curve
+        return law
 
 
     @classmethod
-    def loss(cls, x, velocity, period, thickness, rho, poison=2, dc=0.005, alpha=0.005):
+    def from_elastic_model(cls, vs, vp=None, rho=None, f=None, dc=0.005):
+        f = f or vs.produced_by.frequencies
+        v = cls.func(vs.velocities / 1000, 1 / f, vs.thickness, dc=dc)
+        return DispersionCurve(f, v * 1000)
+
+
+    @staticmethod
+    def func(x, period, thickness, poison=2, dc=0.005):
+        vs = x
+        vp = vs * poison
+        rho = vp * 0.32 + 0.77
+        return surf96(period, thickness, vp, vs, rho, mode=0, itype=0, ifunc=3, dc=dc)
+
+
+    @classmethod
+    def loss(cls, x, velocity, period, thickness, poison=2, dc=0.005, alpha=0.005):
         try:
-            return np.abs(velocity - cls.func(x, period, thickness, rho, poison=poison, dc=dc)).mean() + alpha * np.abs(np.diff(x)).mean()
+            return np.abs(velocity - cls.func(x, period, thickness, poison=poison, dc=dc)).mean() + alpha * np.abs(np.diff(x)).mean()
         except:
             return np.nan
 
         
 class VelocityLaw(VFUNC):
 
-    def __init__(depths, velocities, coords=None):
+    def __init__(self, depths, velocities, coords=None):
         super().__init__(depths, velocities, coords)
 
     def copy(self):
@@ -126,10 +145,17 @@ class VelocityLaw(VFUNC):
         """1d np.ndarray: An array with velocity values, matching the length of `depths`. Measured in meters/seconds."""
         return self.data_y
 
+    @property
+    def thickness(self):
+        return np.diff(self.depths, prepend=0)
+
     @classmethod
     def from_dispersion_curve(cls, dispersion_curve, wavelenght_to_depath=2, rayleigh_to_shear=1.1):
         depths = dispersion_curve.wavelenghts / wavelenght_to_depath
         vs = dispersion_curve.velocities * rayleigh_to_shear
+        law = cls(depths, vs)
+        law.produced_by = dispersion_curve
+        return law
 
     def filter(self, fmin=None, fmax=None):
         fmin = fmin or self.frequencies.min()

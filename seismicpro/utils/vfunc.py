@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from .general_utils import to_list
 from .interpolation import interp1d
 from .coordinates import Coordinates
+from ..decorators import plotter
 
 
 def read_vfunc(path, coords_cols=("INLINE_3D", "CROSSLINE_3D"), encoding="UTF-8"):
@@ -131,6 +132,7 @@ class VFUNC:
         if coords is not None and not isinstance(coords, Coordinates):
             raise ValueError("coords must be either None or an instance of Coordinates")
         self.coords = coords
+        self.bounds = None
 
     def validate_data(self):
         """Validate whether `data_x` and `data_y` are 1d arrays of the same shape."""
@@ -213,8 +215,21 @@ class VFUNC:
         """Evaluate the vertical function at given points."""
         return self.interpolator(data_x)
 
-    def plot(self, ax=None):
-        if ax is None:
-            _, ax = plt.subplots()
-        ax.plot(self.data_x, self.data_y)
-        ax.invert_yaxis()
+    @plotter(figsize=(7,5))
+    def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
+        ax.plot(self.data_y, self.data_x, **kwargs)
+        if self.bounds is not None and plot_bounds:
+            ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
+        if invert:
+            ax.invert_yaxis()
+
+    def filter(self, start=None, end=None):
+        start = start or self.data_x.min()
+        end = end or self.data_x.max()
+        mask = (self.data_x >= start) & (self.data_x <= end)
+        self.data_y = self.data_y[mask]
+        self.data_x = self.data_x[mask]
+
+    def copy(self):
+        from copy import copy
+        return copy(self)

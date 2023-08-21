@@ -5,10 +5,12 @@ from .dispersion_curve import DispersionCurve
 from .utils.bessel import j0, y0
 from ..spectrum import Spectrum
 from ..velocity_spectrum import SlantStack
+from ..decorators import plotter
+
+from ..containers import SamplesContainer
 
 
-
-class DispersionSpectrum(Spectrum):
+class DispersionSpectrum(Spectrum, SamplesContainer):
     """ Implements various transforms of seisimc gather to f-v domain. """
 
     @classmethod
@@ -29,8 +31,25 @@ class DispersionSpectrum(Spectrum):
         spectrum_data = complex_to_real(spectrum_data)
         spectrum =  cls(spectrum_data, velocities, frequencies)
         spectrum.sample_interval = gather.sample_rate / gather.n_samples
+        spectrum.delay = frequencies[0]
         spectrum.gather = gather.copy()
+        spectrum.coords = gather.coords
         return spectrum
+
+    @property
+    def velocities(self):
+        return self.x_values
+
+    @property
+    def n_velocities(self):
+        return len(self.velocities)
+
+    @property
+    def frequencies(self):
+        return self.y_values
+
+    def plot(self, dispersion_curve=None, plot_bounds=True, **kwargs):
+        return super().plot(title='Dispersion Spsectrum', vfunc=dispersion_curve, plot_bounds=plot_bounds, **kwargs)
 
     @staticmethod
     def calculate_ft(data, sample_interval, fmax=None):
