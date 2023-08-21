@@ -143,12 +143,12 @@ def calculate_stacking_velocity(spectrum, init=None, bounds=None, relative_margi
     max_velocity_bound : 1d np.ndarray
         Maximum velocity bound. Matches the length of `bounds_times`. Measured in meters/seconds.
     """
-    spectrum_data = spectrum.velocity_spectrum.max() - spectrum.velocity_spectrum
-    spectrum_times = np.asarray(spectrum.times, dtype=np.float32)
-    spectrum_velocities = np.asarray(spectrum.velocities, dtype=np.float32)
+    spectrum_data = spectrum.spectrum.max() - spectrum.spectrum
+    spectrum_times = np.asarray(spectrum.y_values, dtype=np.float32)
+    spectrum_velocities = np.asarray(spectrum.x_values, dtype=np.float32)
 
     # Calculate times of graph nodes
-    times_step_samples = int(times_step // spectrum.sample_interval)
+    times_step_samples = int(times_step // spectrum.gather.sample_interval)
     layer_times_ix = np.arange(0, len(spectrum_times), times_step_samples)
     layer_times_ix[-1] = len(spectrum_times) - 1
     layer_times = spectrum_times[layer_times_ix]

@@ -61,7 +61,7 @@ def get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times,
 
 @njit(nogil=True, parallel=True)
 def apply_constant_velocity_nmo(gather_data, offsets, sample_interval, delay, times, velocity,
-                                max_stretch_factor=np.inf, interpolate=True, fill_value=np.nan):
+                                interpolate=True, fill_value=np.nan, max_stretch_factor=np.inf):
     """Perform gather normal moveout correction with the same velocity used for all times.
 
     This method is identical to `apply_nmo` when all elements of `velocities` are equal to `velocity` and all elements
@@ -72,6 +72,21 @@ def apply_constant_velocity_nmo(gather_data, offsets, sample_interval, delay, ti
         hodograph_times = np.sqrt(times[i]**2 + (offsets / velocity)**2)
         max_offset = times[i] * velocity * np.sqrt((1 + max_stretch_factor)**2 - 1)
         get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times, max_offset=max_offset,
+                      interpolate=interpolate, fill_value=fill_value, out=corrected_gather_data[:, i])
+    return corrected_gather_data
+
+@njit(nogil=True, parallel=True)
+def apply_constant_velocity_lmo(gather_data, offsets, sample_interval, delay, times, velocity,
+                                interpolate=True, fill_value=np.nan):
+    """Perform gather normal moveout correction with the same velocity used for all times.
+
+    This method is identical to `apply_nmo` when all elements of `velocities` are equal to `velocity` and all elements
+    of `velocities_grad` are zeros. However, it is far more optimized due to the simplified muting procedure.
+    """
+    corrected_gather_data = np.full((len(offsets), len(times)), fill_value=fill_value, dtype=gather_data.dtype)
+    for i in prange(len(times)):
+        hodograph_times = times[i] + (offsets / velocity)
+        get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times,
                       interpolate=interpolate, fill_value=fill_value, out=corrected_gather_data[:, i])
     return corrected_gather_data
 

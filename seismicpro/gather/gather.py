@@ -24,7 +24,7 @@ from ..utils import (to_list, get_coords_cols, get_first_defined, set_ticks, for
                      set_text_formatting, add_colorbar, piecewise_polynomial, Coordinates)
 from ..containers import TraceContainer, SamplesContainer
 from ..muter import Muter, MuterField
-from ..velocity_spectrum import VerticalVelocitySpectrum, ResidualVelocitySpectrum
+from ..velocity_spectrum import VerticalVelocitySpectrum, ResidualVelocitySpectrum, SlantStack
 from ..stacking_velocity import StackingVelocity, StackingVelocityField
 from ..refractor_velocity import RefractorVelocity, RefractorVelocityField
 from ..decorators import batch_method, plotter
@@ -753,6 +753,10 @@ class Gather(TraceContainer, SamplesContainer):
     #             Vertical Velocity Spectrum calculation methods             #
     #------------------------------------------------------------------------#
 
+    @batch_method(target="threads", copy_src=False)
+    def calculate_slant_stack(self, velocities):
+        return SlantStack.from_gather(self, velocities)
+
     @batch_method(target="for", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_vertical_velocity_spectrum(self, velocities=None, stacking_velocity=None, relative_margin=0.2,
                                              velocity_step=50, window_size=50, mode='semblance',
@@ -820,7 +824,7 @@ class Gather(TraceContainer, SamplesContainer):
         vertical_velocity_spectrum : VerticalVelocitySpectrum
             Calculated vertical velocity spectrum.
         """
-        return VerticalVelocitySpectrum(gather=self, velocities=velocities, stacking_velocity=stacking_velocity,
+        return VerticalVelocitySpectrum.from_gather(gather=self, velocities=velocities, stacking_velocity=stacking_velocity,
                                         relative_margin=relative_margin, velocity_step=velocity_step,
                                         window_size=window_size, mode=mode, max_stretch_factor=max_stretch_factor,
                                         interpolate=interpolate)
@@ -880,7 +884,7 @@ class Gather(TraceContainer, SamplesContainer):
         residual_velocity_spectrum : ResidualVelocitySpectrum
             Calculated residual velocity spectrum.
         """
-        return ResidualVelocitySpectrum(gather=self, stacking_velocity=stacking_velocity,
+        return ResidualVelocitySpectrum.from_gather(gather=self, stacking_velocity=stacking_velocity,
                                         relative_margin=relative_margin, velocity_step=velocity_step,
                                         window_size=window_size, mode=mode, max_stretch_factor=max_stretch_factor,
                                         interpolate=interpolate)
@@ -980,7 +984,7 @@ class Gather(TraceContainer, SamplesContainer):
             stacking_velocity = np.float32(stacking_velocity / 1000)  # from m/s to m/ms
             self.data = correction.apply_constant_velocity_nmo(self.data, self.offsets, self.sample_interval,
                                                                self.delay, self.times, stacking_velocity,
-                                                               max_stretch_factor, interpolate, fill_value)
+                                                               interpolate, fill_value, max_stretch_factor)
             return self
 
         if isinstance(stacking_velocity, StackingVelocityField):
