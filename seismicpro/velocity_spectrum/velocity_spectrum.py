@@ -34,7 +34,7 @@ COHERENCY_FUNCS = {
 }
 
 
-class BaseVelocitySpectrum(Spectrum, SamplesContainer):
+class BaseVelocitySpectrum(Spectrum):
 
     @property
     def velocities(self):
@@ -43,29 +43,6 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
     @property
     def times(self):
         return self.y_values
-
-    # @property
-    # def samples(self):
-    #     """np.ndarray of floats: Recording time for each trace value. Measured in milliseconds."""
-    #     return self.gather.samples
-
-    # @property
-    # def sample_interval(self):
-    #     """float: Sample interval of seismic traces. Measured in milliseconds."""
-    #     return self.gather.sample_interval
-
-    # @property
-    # def delay(self):
-    #     """float: Delay recording time of seismic traces. Measured in milliseconds."""
-    #     return self.gather.delay
-
-    @property
-    def coords(self):
-        """Coordinates or None: Spatial coordinates of the velocity spectrum. Determined by the underlying gather.
-        `None` if the gather is indexed by unsupported headers or required coords headers were not loaded or
-        coordinates are non-unique for traces of the gather."""
-        return self.gather.coords
-
 
     def get_time_knots(self, stacking_velocity):
         """Return a sorted array of `stacking_velocity` times, that lie within the time range used for spectrum
@@ -150,6 +127,8 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
         spectrum = cls(velocity_spectrum, velocities, gather.times)
         spectrum.gather = gather.copy()
+        spectrum.times_interval = gather.sample_interval
+        spectrum.coords = gather.coords
         spectrum.coherency_func = coherency_func
         spectrum.half_win_size_samples = half_win_size_samples
         spectrum.max_stretch_factor = max_stretch_factor
@@ -184,7 +163,6 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
             title = f"Vertical Velocity Spectrum \n Coherency func: {self.coherency_func.__name__}"
         if isinstance(stacking_velocity, StackingVelocityField):
             stacking_velocity = stacking_velocity(self.coords)
-
         plot_kwargs = {"vfunc": stacking_velocity, "plot_bounds": plot_bounds, "title": title, 
                       "x_label": "Velocity, m/s", "y_label": 'Time, ms', "grid": grid, "colorbar": colorbar,
                       "x_ticker": x_ticker, "y_ticker": y_ticker, **kwargs} 
@@ -240,7 +218,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         margins, margin_step = np.linspace(-relative_margin, relative_margin, velocity_spectrum.shape[1], retstep=True)
         spectrum = cls(velocity_spectrum, margins, gather.times)
         spectrum.gather = gather.copy()
-        spectrum.stacking_velocity = stacking_velocity
+        spectrum.stacking_velocity = stacking_velocity.copy().recalculate(gather.times[0], gather.times[-1])
         spectrum.relative_margin = relative_margin
         spectrum.margin_step = margin_step
         correction_func = apply_constant_velocity_nmo
@@ -311,9 +289,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
              x_ticker=None, y_ticker=None, **kwargs):
         if title is None:
             title = f"Residual Velocity Spectrum \n Coherency func: {self.coherency_func.__name__}"
-
-        stacking_times = self.get_time_knots(self.stacking_velocity)
-        stacking_velocity = VFUNC(stacking_times, [0] * len(stacking_times))
+        stacking_velocity = VFUNC(self.stacking_velocity.times, [0] * len(self.stacking_velocity.times))
 
         if acceptable_margin is not None:
             stacking_velocity.bounds = [VFUNC([0, self.times[-1]], [-acceptable_margin, -acceptable_margin]),

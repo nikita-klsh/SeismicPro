@@ -31,7 +31,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         self.click_vel = None
         self.velocity_spectrum = velocity_spectrum
         self.gather = self.velocity_spectrum.gather.copy(ignore="data").sort('offset')
-        plot_velocity_spectrum = super(type(velocity_spectrum), velocity_spectrum).plot
+        plot_velocity_spectrum = super(type(velocity_spectrum), velocity_spectrum).plot   #there must be better way
         self.plot_velocity_spectrum = partial(plot_velocity_spectrum, title=None, **kwargs)
         self.half_win_size = half_win_size or self.velocity_spectrum.half_win_size_samples
 
@@ -82,15 +82,12 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         ax.fill_between(np.arange(len(hodograph_y)), hodograph_low, hodograph_high, color="tab:blue", alpha=0.5)
 
     def get_velocity_time_by_coords(self, coords):
-        return coords
+        return coords[0], coords[1]
     
     def click(self, coords):
         """Highlight the hodograph defined by click location on the gather plot."""
-        click_time, click_vel = coords[1], coords[0]
-        if (click_time is None) or (click_vel is None):
-            return None  # Ignore click
         self.aux.view_button.disabled = False
-        self.click_time, self.click_vel = self.get_velocity_time_by_coords(coords)
+        self.click_vel, self.click_time = self.get_velocity_time_by_coords(coords)
         self.aux.redraw()
         return coords
 
@@ -134,6 +131,6 @@ class SlantStackPlot(VelocitySpectrumPlot):
 class RedidualVelocitySpectrumPlot(VerticalVelocitySpectrumPlot):
     
     def get_velocity_time_by_coords(self, coords):
-        click_time, click_margin = coords[1], coords[0]
+        click_margin, click_time = coords[0], coords[1]
         click_vel = self.velocity_spectrum.stacking_velocity(click_time) * (1 + click_margin)
         return click_vel, click_time

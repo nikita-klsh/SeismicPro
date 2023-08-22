@@ -20,7 +20,7 @@ class Spectrum:
 
 
     @plotter(figsize=(10, 9))
-    def plot(self, vfunc=None, grid=False, colorbar=True, x_label=None, x_ticker=None, y_label=None, y_ticker=None,
+    def plot(self, vfunc=None, align_vfunc=True, grid=False, colorbar=True, x_label=None, x_ticker=None, y_label=None, y_ticker=None,
              title=None, clip_threshold_quantile=0.99, n_levels=10, ax=None, **kwargs):
         # Cast text-related parameters to dicts and add text formatting parameters from kwargs to each of them
         (title, x_ticker, y_ticker), kwargs = set_text_formatting(title, x_ticker, y_ticker, **kwargs)
@@ -35,6 +35,8 @@ class Spectrum:
 
         if vfunc is not None:
             for ix_vfunc in to_list(vfunc):
+                if align_vfunc:
+                    ix_vfunc = ix_vfunc.copy().recalculate(self.y_values[0], self.y_values[-1])
                 ix_vfunc.plot(ax=ax, invert=False, plot_bounds=True, linewidth=2.5, marker="o", markevery=slice(1, -1), fill_area_color='white')
 
         if grid:

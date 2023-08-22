@@ -1,5 +1,7 @@
 """Utilities for processing of vertical functions"""
 
+from copy import deepcopy
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -200,6 +202,18 @@ class VFUNC:
             ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
         if invert:
             ax.invert_yaxis()
+
+    def copy(self):
+        return deepcopy(self)
+
+    def recalculate(self, start_x, end_x):
+        valid_x_mask = (self.data_x > start_x) & (self.data_x < end_x)
+        valid_x = np.sort(self.data_x[valid_x_mask])
+        new_x = np.concatenate([[start_x], valid_x, [end_x]])
+        self.data_x = new_x
+        self.data_y = self(new_x)
+        return self
+
 
     def dump(self, path, encoding="UTF-8"):
         """Dump the vertical function to a file in Paradigm Echos VFUNC format.

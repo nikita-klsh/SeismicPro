@@ -148,7 +148,7 @@ def calculate_stacking_velocity(spectrum, init=None, bounds=None, relative_margi
     spectrum_velocities = np.asarray(spectrum.x_values, dtype=np.float32)
 
     # Calculate times of graph nodes
-    times_step_samples = int(times_step // spectrum.gather.sample_interval)
+    times_step_samples = int(times_step // spectrum.times_interval)
     layer_times_ix = np.arange(0, len(spectrum_times), times_step_samples)
     layer_times_ix[-1] = len(spectrum_times) - 1
     layer_times = spectrum_times[layer_times_ix]
