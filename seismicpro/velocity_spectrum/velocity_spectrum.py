@@ -9,9 +9,8 @@ from numba import njit, prange
 from matplotlib import colors as mcolors
 import matplotlib.pyplot as plt
 
-
 from .utils import coherency_funcs
-from .interactive_plot import VerticalVelocitySpectrumPlot, SlantStackPlot
+from .interactive_plot import VerticalVelocitySpectrumPlot, RedidualVelocitySpectrumPlot, SlantStackPlot
 from ..spectrum import Spectrum
 from ..containers import SamplesContainer
 from ..decorators import batch_method, plotter
@@ -67,11 +66,6 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         coordinates are non-unique for traces of the gather."""
         return self.gather.coords
 
-    def get_time_velocity_by_indices(self, time_ix, velocity_ix):
-        """Get time (in milliseconds) and velocity (in meters/milliseconds) by their indices (possibly non-integer) in
-        velocity spectrum."""
-        _ = time_ix, velocity_ix
-        raise NotImplementedError
 
     def get_time_knots(self, stacking_velocity):
         """Return a sorted array of `stacking_velocity` times, that lie within the time range used for spectrum
@@ -91,6 +85,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         corrected_gather_data = correction_func(gather_data, offsets, sample_interval, delay,
                                                             times[t_win_size_min_ix: t_win_size_max_ix + 1], velocity,
                                                             interpolate, np.nan, *correction_func_args)
+
         numerator, denominator = coherency_func(corrected_gather_data)
 
         if out is None:
@@ -99,7 +94,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         for t in prange(t_min_ix, t_max_ix):
             t_rel = t - t_win_size_min_ix
             ix_from = max(0, t_rel - half_win_size_samples)
-            ix_to = min(corrected_gather_data.shape[1] - 1, t_rel + half_win_size_samples)
+            ix_to = min(corrected_gather_data.shape[1] - 1, t_rel + half_win_size_samples + 1)
             out[t - t_min_ix] = np.sum(numerator[ix_from : ix_to]) / (np.sum(denominator[ix_from : ix_to]) + 1e-8)
         return out
 
@@ -115,13 +110,6 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
                           max_stretch_factor=max_stretch_factor, interpolate=interpolate, out=velocity_spectrum[:, j],
                           correction_func=correction_func, correction_func_args=correction_func_args)
         return velocity_spectrum
-
-
-    def plot(self, *args, interactive=False, **kwargs):
-        """Plot velocity spectrum in interactive or non-interactive mode."""
-        if not interactive:
-            return self._plot(*args, **kwargs)
-        return VerticalVelocitySpectrumPlot(self, *args, **kwargs).plot()
 
 
 class VerticalVelocitySpectrum(BaseVelocitySpectrum):
@@ -188,35 +176,23 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         n_velocities = math.ceil((max_velocity - min_velocity) / velocity_step) + 1
         return min_velocity + velocity_step * np.arange(n_velocities)
 
-    def get_time_velocity_by_indices(self, time_ix, velocity_ix):
-        """Get time (in milliseconds) and velocity (in meters/milliseconds) by their indices (possibly non-integer) in
-        velocity spectrum."""
-        time = None
-        if 0 <= time_ix <= self.n_times - 1:
-            time = self.delay + self.sample_interval * time_ix
-
-        velocity = None
-        if 0 <= velocity_ix <= self.n_velocities - 1:
-            velocity = np.interp(velocity_ix, np.arange(self.n_velocities), self.velocities) / 1000  # from m/s to m/ms
-
-        return time, velocity
-
-    def _plot(self, stacking_velocity=None, *, plot_bounds=True, title=None, x_ticker=None, y_ticker=None, grid=False,
-              colorbar=True, ax=None, **kwargs):
-        """Plot vertical velocity spectrum."""
-        Spectrum.plot(self, vfunc=stacking_velocity, title=title, x_label="Velocity, m/s", x_ticklabels=self.x_values,
-                      x_ticker=x_ticker, y_ticklabels=self.y_values, y_ticker=y_ticker, ax=ax, grid=grid,
-                      colorbar=colorbar, **kwargs)
-        return self
 
     @plotter(figsize=(10, 9), args_to_unpack="stacking_velocity")
-    def plot(self, stacking_velocity=None, *, plot_bounds=True, title=None, interactive=False, **kwargs):
+    def plot(self, stacking_velocity=None, *, interactive=False, plot_bounds=True, title=None, grid=False, colorbar=True, 
+             x_ticker=None, y_ticker=None, **kwargs):
         if title is None:
             title = f"Vertical Velocity Spectrum \n Coherency func: {self.coherency_func.__name__}"
         if isinstance(stacking_velocity, StackingVelocityField):
             stacking_velocity = stacking_velocity(self.coords)
-        return super().plot(stacking_velocity=stacking_velocity, plot_bounds=plot_bounds, interactive=interactive,
-                            title=title, **kwargs)
+
+        plot_kwargs = {"vfunc": stacking_velocity, "plot_bounds": plot_bounds, "title": title, 
+                      "x_label": "Velocity, m/s", "y_label": 'Time, ms', "grid": grid, "colorbar": colorbar,
+                      "x_ticker": x_ticker, "y_ticker": y_ticker, **kwargs} 
+
+        if not interactive:
+            return super().plot(**plot_kwargs)
+        return VerticalVelocitySpectrumPlot(self, **plot_kwargs).plot()
+    
 
     @batch_method(target="for", args_to_unpack="init", copy_src=False)
     def calculate_stacking_velocity(self, init=None, bounds=None, relative_margin=None, acceleration_bounds="auto",
@@ -329,22 +305,13 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
             residual_velocity_spectrum[i] = np.interp(target_velocities, cropped_velocities, cropped_spectrum)
         return residual_velocity_spectrum
 
-    def get_time_velocity_by_indices(self, time_ix, velocity_ix):
-        """Get time (in milliseconds) and velocity (in meters/milliseconds) by their indices (possibly non-integer) in
-        residual velocity spectrum."""
-        if (time_ix < 0) or (time_ix > self.n_times - 1):
-            return None, None
-        time = self.delay + self.sample_interval * time_ix
 
-        if (velocity_ix < 0) or (velocity_ix > self.n_margins - 1):
-            return time, None
-        margin = -self.relative_margin + velocity_ix * self.margin_step
-        velocity = self.stacking_velocity(time) * (1 + margin) / 1000  # from m/s to m/ms
-        return time, velocity
+    @plotter(figsize=(10, 9))
+    def plot(self, *, acceptable_margin=None, title=None, interactive=False, colorbar=True, grid=False,
+             x_ticker=None, y_ticker=None, **kwargs):
+        if title is None:
+            title = f"Residual Velocity Spectrum \n Coherency func: {self.coherency_func.__name__}"
 
-    def _plot(self, *, acceptable_margin=None, title=None, x_ticker=None, y_ticker=None, grid=False, colorbar=True,
-              ax=None, **kwargs):
-        """Plot residual vertical velocity spectrum."""
         stacking_times = self.get_time_knots(self.stacking_velocity)
         stacking_velocity = VFUNC(stacking_times, [0] * len(stacking_times))
 
@@ -352,51 +319,47 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
             stacking_velocity.bounds = [VFUNC([0, self.times[-1]], [-acceptable_margin, -acceptable_margin]),
                                         VFUNC([0, self.times[-1]], [acceptable_margin, acceptable_margin])]
 
-        Spectrum.plot(self, vfunc=stacking_velocity, title=title, x_label="Relative velocity margin, %", x_ticklabels=self.margins * 100,
-                      x_ticker=x_ticker, y_ticklabels=self.times, y_ticker=y_ticker, ax=ax, grid=grid,
-                      colorbar=colorbar, **kwargs)
-        return self
+        plot_kwargs = {"vfunc": stacking_velocity, "title": title, 
+                       "x_label": "Margin, %", "y_label": 'Time, ms', "grid": grid, "colorbar": colorbar,
+                       "x_ticker": x_ticker, "y_ticker": y_ticker, **kwargs} 
 
-    @plotter(figsize=(10, 9))
-    def plot(self, *, acceptable_margin=None, title=None, interactive=False, **kwargs):
-        if title is None:
-            title = f"Residual Velocity Spectrum \n Coherency func: {self.coherency_func.__name__}"
-        return super().plot(interactive=interactive, acceptable_margin=acceptable_margin, title=title, **kwargs)
+        if not interactive:
+            return super().plot(**plot_kwargs)
+        return RedidualVelocitySpectrumPlot(self, **plot_kwargs).plot()
 
 
 class SlantStack(BaseVelocitySpectrum):
     
     @classmethod
     def from_gather(cls, gather, velocities):
-        half_win_size_samples = 1
-        coherency_func = coherency_funcs.stacked_amplitude_sum
-
         velocities = np.sort(velocities)
         velocities = np.asarray(velocities, dtype=np.float32)  # m/s
-
         velocities_ms = velocities / 1000  # from m/s to m/ms
 
-        kwargs = {"spectrum_func": cls.calc_single_velocity_spectrum, "coherency_func": coherency_func,
+        kwargs = {"spectrum_func": cls.calc_single_velocity_spectrum, "coherency_func": coherency_funcs.stacked_amplitude_sum,
                   "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
                   "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
-                  "half_win_size_samples": half_win_size_samples, "max_stretch_factor": np.inf,
+                  "half_win_size_samples": 0, "max_stretch_factor": np.inf,
                   "interpolate": True, 
                   "correction_func": apply_constant_velocity_lmo, "correction_func_args": ()}
 
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
-
         spectrum =  cls(velocity_spectrum, velocities, gather.times)
         spectrum.gather = gather.copy()
-        spectrum.coherency_func = coherency_func
         spectrum.correction_func = apply_constant_velocity_lmo
         spectrum.correction_func_args = ()
-        spectrum.half_win_size_samples = 10
         return spectrum
     
 
-    @plotter(figsize=(10, 9), args_to_unpack="stacking_velocity")
-    def plot(self, interactive=False, title='Slant Stack', half_win_size=10, **kwargs):
-        if interactive:
-            return SlantStackPlot(self, half_win_size=half_win_size, **kwargs).plot()
-        Spectrum.plot(self, title=title, x_label="Velocity, m/s", **kwargs)
-        return self
+    @plotter(figsize=(10, 9))
+    def plot(self, interactive=False, title=None, half_win_size=10, grid=False, colorbar=True, x_ticker=None, y_ticker=None, **kwargs):
+        if title is None:
+            title = "Slant Stack"
+
+        plot_kwargs = {"title": title, 
+                      "x_label": "Velocity, m/s", "y_label": 'Time, ms', "grid": grid, "colorbar": colorbar, 
+                      "x_ticker": x_ticker, "y_ticker": y_ticker, **kwargs} 
+
+        if not interactive:
+            return super().plot(**plot_kwargs)
+        return SlantStackPlot(self, half_win_size=half_win_size, **plot_kwargs).plot()
