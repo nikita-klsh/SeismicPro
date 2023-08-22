@@ -390,10 +390,14 @@ class SlantStack(BaseVelocitySpectrum):
         spectrum.coherency_func = coherency_func
         spectrum.correction_func = apply_constant_velocity_lmo
         spectrum.correction_func_args = ()
+        spectrum.half_win_size_samples = 10
         return spectrum
     
 
     @plotter(figsize=(10, 9), args_to_unpack="stacking_velocity")
-    def plot(self, title='Slant Stack', **kwargs):
+    def plot(self, interactive=False, title='Slant Stack', **kwargs):
+        from .interactive_plot import SlantStackPlot
+        if interactive:
+            return SlantStackPlot(self, **kwargs).plot()
         Spectrum.plot(self, title=title, x_label="Velocity, m/s", **kwargs)
         return self

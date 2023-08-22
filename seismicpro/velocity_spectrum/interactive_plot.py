@@ -16,7 +16,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
     velocity by switching the view. The width of the hodograph matches the window size used to calculate the spectrum
     on both views. An initial click is performed on the maximum spectrum value.
     """
-    def __init__(self, velocity_spectrum, title=None, gather_plot_kwargs=None,
+    def __init__(self, velocity_spectrum, title=None, gather_plot_kwargs=None, 
                  figsize=(4.5, 4.5), fontsize=8, orientation="horizontal", **kwargs):
         kwargs = {"fontsize": fontsize, **kwargs}
         text_kwargs = get_text_formatting_kwargs(**kwargs)
@@ -31,7 +31,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         self.click_vel = None
         self.velocity_spectrum = velocity_spectrum
         self.gather = self.velocity_spectrum.gather.copy(ignore="data").sort('offset')
-        self.plot_velocity_spectrum = partial(self.velocity_spectrum._plot, title=None, **kwargs)
+        self.plot_velocity_spectrum = partial(self.velocity_spectrum.plot, title=None, **kwargs)
 
         super().__init__(orientation=orientation)
 
@@ -102,3 +102,20 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         self.click_vel = None
         self.aux.set_view(0)
         self.aux.view_button.disabled = True
+
+
+class SlantStackPlot(VelocitySpectrumPlot):
+
+    def get_gather(self, corrected=False):
+        """Get an optionally corrected gather."""
+        if not corrected:
+            return self.gather
+        return self.gather.copy(ignore=["headers", "data", "samples"]).apply_lmo(self.click_vel * 1000, 0)
+
+    def get_hodograph_times(self, corrected):
+        """Get hodograph times if a click has been performed."""
+        if (self.click_time is None) or (self.click_vel is None):
+            return None
+        if not corrected:
+            return self.click_time + (self.gather.offsets/self.click_vel)
+        return np.full_like(self.gather.offsets, self.click_time)
