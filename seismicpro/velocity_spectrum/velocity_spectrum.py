@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 
 from .utils import coherency_funcs
-from .interactive_plot import VelocitySpectrumPlot
+from .interactive_plot import VerticalVelocitySpectrumPlot, SlantStackPlot
 from ..spectrum import Spectrum
 from ..containers import SamplesContainer
 from ..decorators import batch_method, plotter
@@ -121,7 +121,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         """Plot velocity spectrum in interactive or non-interactive mode."""
         if not interactive:
             return self._plot(*args, **kwargs)
-        return VelocitySpectrumPlot(self, *args, **kwargs).plot()
+        return VerticalVelocitySpectrumPlot(self, *args, **kwargs).plot()
 
 
 class VerticalVelocitySpectrum(BaseVelocitySpectrum):
@@ -395,9 +395,8 @@ class SlantStack(BaseVelocitySpectrum):
     
 
     @plotter(figsize=(10, 9), args_to_unpack="stacking_velocity")
-    def plot(self, interactive=False, title='Slant Stack', **kwargs):
-        from .interactive_plot import SlantStackPlot
+    def plot(self, interactive=False, title='Slant Stack', half_win_size=10, **kwargs):
         if interactive:
-            return SlantStackPlot(self, **kwargs).plot()
+            return SlantStackPlot(self, half_win_size=half_win_size, **kwargs).plot()
         Spectrum.plot(self, title=title, x_label="Velocity, m/s", **kwargs)
         return self
