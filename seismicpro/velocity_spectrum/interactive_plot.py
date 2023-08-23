@@ -109,7 +109,7 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
         """Get an optionally corrected gather."""
         if not corrected:
             return self.gather
-        max_stretch_factor = self.velocity_spectrum.max_stretch_factor
+        max_stretch_factor = self.velocity_spectrum.correction_func_args[0]
         return self.gather.copy(ignore=["headers", "data", "samples"]) \
                           .apply_nmo(self.click_vel, max_stretch_factor=max_stretch_factor)
 
