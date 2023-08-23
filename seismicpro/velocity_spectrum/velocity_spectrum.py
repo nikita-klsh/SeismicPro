@@ -35,6 +35,33 @@ COHERENCY_FUNCS = {
 
 
 class BaseVelocitySpectrum(Spectrum):
+    """Base class for vertical velocity spectrum calculation.
+    Implements general computation logic and a method for spectrum visualization.
+    Parameters
+    ----------
+    gather : Gather
+        Seismic gather to calculate velocity spectrum for.
+    window_size : float
+        Temporal window size used for velocity spectrum calculation. The higher the `window_size` is, the smoother the
+        resulting velocity spectrum will be but to the detriment of small details. Measured in milliseconds.
+    mode: str, defaults to `semblance`
+        A measure for estimating hodograph coherency. See `COHERENCY_FUNCS` for available options.
+    max_stretch_factor : float, defaults to np.inf
+        Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO correction.
+        This mute is applied after NMO correction for each provided velocity and before coherency calculation. The
+        lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
+        Reasonably good value is 0.65.
+    Attributes
+    ----------
+    gather : Gather
+        Seismic gather for which velocity spectrum calculation was called.
+    half_win_size_samples : int
+        Half of the temporal window size for smoothing the velocity spectrum. Measured in samples.
+    coherency_func : callable
+        A function that estimates the chosen coherency measure for a hodograph.
+    max_stretch_factor : float
+        Maximum allowable factor for stretch muter.
+    """
 
     @property
     def velocities(self):
