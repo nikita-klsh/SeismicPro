@@ -10,7 +10,7 @@ from ..decorators import plotter
 from ..containers import SamplesContainer
 
 
-class DispersionSpectrum(Spectrum, SamplesContainer):
+class DispersionSpectrum(Spectrum):
     """ Implements various transforms of seisimc gather to f-v domain. """
 
     @classmethod
@@ -48,8 +48,8 @@ class DispersionSpectrum(Spectrum, SamplesContainer):
     def frequencies(self):
         return self.y_values
 
-    def plot(self, dispersion_curve=None, plot_bounds=True, **kwargs):
-        return super().plot(title='Dispersion Spsectrum', vfunc=dispersion_curve, plot_bounds=plot_bounds, **kwargs)
+    def plot(self, dispersion_curve=None,plot_bounds=True, **kwargs):
+        return super().plot(title='Dispersion Spsectrum', vfunc=dispersion_curve, plot_bounds=plot_bounds, align_vfunc=False, **kwargs)
 
     @staticmethod
     def calculate_ft(data, sample_interval, fmax=None):

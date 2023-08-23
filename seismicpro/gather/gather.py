@@ -765,12 +765,6 @@ class Gather(TraceContainer, SamplesContainer):
     
     @batch_method(target="threads", copy_src=False)
     def calculate_slant_stack(self, velocities):
-        from ..velocity_spectrum import SlantStack
-        return SlantStack.from_gather(self, velocities)
-
-
-    @batch_method(target="threads", copy_src=False)
-    def calculate_slant_stack(self, velocities):
         return SlantStack.from_gather(self, velocities)
 
     @batch_method(target="for", args_to_unpack="stacking_velocity", copy_src=False)
