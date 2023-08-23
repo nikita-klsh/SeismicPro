@@ -28,8 +28,15 @@ class Spectrum:
         cmap = plt.get_cmap('seismic')
         level_values = np.linspace(np.quantile(self.spectrum, 1 - clip_threshold_quantile), np.quantile(self.spectrum, clip_threshold_quantile), n_levels)
         norm = mcolors.BoundaryNorm(level_values, cmap.N, clip=True)
-        img = ax.imshow(self.spectrum, norm=norm, aspect='auto', cmap=cmap,
-                        extent=[self.x_values[0], self.x_values[-1], self.y_values[-1], self.y_values[0]])
+        extent=[self.x_values[0], self.x_values[-1], self.y_values[-1], self.y_values[0]]
+        # img = ax.imshow(self.spectrum, norm=norm, aspect='auto', cmap=cmap, extent=extent)
+        from matplotlib.image import NonUniformImage
+        img = NonUniformImage(ax, cmap=cmap, norm=norm, extent=extent, interpolation='bilinear')
+        img.set_data(self.x_values, self.y_values, self.spectrum)
+        ax.add_image(img)
+        ax.set_xlim(self.x_values[0], self.x_values[-1])
+        ax.set_ylim(self.y_values[-1], self.y_values[0])
+    
         add_colorbar(ax, img, colorbar, y_ticker=y_ticker)
         ax.set_title(**{"label": None, **title})
 

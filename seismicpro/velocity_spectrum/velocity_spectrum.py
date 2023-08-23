@@ -293,7 +293,6 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
 
         velocities = np.asarray(velocities, dtype=np.float32)  # m/s
 
-
         velocities_ms = velocities / 1000  # from m/s to m/ms
         kwargs = {"spectrum_func": cls.calc_single_velocity_spectrum, "coherency_func": coherency_func,
                   "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
