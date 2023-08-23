@@ -14,20 +14,17 @@ from fteikpy import Eikonal3D
 
 from .raytracing import describe_rays
 from .profile_plot import ProfilePlot
-from ..statics import Statics
-from ..utils import get_uphole_correction_method
-from ...survey import Survey
-from ...utils import to_list, align_args, IDWInterpolator
+from ..model import NearSurfaceModel
+from ...utils import to_list, IDWInterpolator
 from ...const import HDR_FIRST_BREAK
 
 
-class TomoModel:
+class TomoModel(NearSurfaceModel):
     def __init__(self, grid, velocities):
-        if not np.array_equal(velocities.shape, grid.shape):
-            raise ValueError
+        super().__init__(grid)
+        velocities = np.broadcast_to(velocities, grid.shape)
 
-        self.grid = grid
-        self.velocities_tensor = torch.tensor(velocities, dtype=torch.float32, requires_grad=True)
+        self.velocities_tensor = torch.tensor(velocities, dtype=torch.float64, requires_grad=True)
         self.enforce_constraints()
 
         self.loss_hist = []
@@ -72,7 +69,7 @@ class TomoModel:
 
         spatial_velocities = cls.interp_velocities(elevations, velocities, z_cell_centers)
         velocity_grid = np.require(spatial_velocities.reshape((nx, ny, nz)).transpose((2, 0, 1)),
-                                   dtype=np.float32, requirements="C")
+                                   dtype=np.float64, requirements="C")
         return cls(grid, velocity_grid)
 
     @classmethod
@@ -80,7 +77,7 @@ class TomoModel:
         if (top_velocity <= 0) or (bottom_velocity <= 0):
             raise ValueError
         velocities = np.linspace(bottom_velocity, top_velocity, grid.shape[0]).reshape(-1, 1, 1)
-        return cls(grid, np.broadcast_to(velocities, grid.shape))
+        return cls(grid, velocities)
 
     # Traveltime estimation
 
@@ -149,16 +146,17 @@ class TomoModel:
         n_succeeded = succeeded.sum()
         tt_pred = np.empty(len(receivers), dtype=np.float32)
         if n_succeeded != len(receivers):
-            tt_pred[~succeeded] = tt_grid(receivers[~succeeded])
+            tt_pred[~succeeded] = 1000 * tt_grid(receivers[~succeeded])
 
-        tt_pred_tensor = torch.zeros(n_succeeded, dtype=torch.float64)
-        trace_indices = torch.from_numpy(trace_indices)
-        cell_indices = torch.from_numpy(cell_indices)
-        cell_passes = torch.from_numpy(cell_passes)
+        if n_succeeded != 0:
+            tt_pred_tensor = torch.zeros(n_succeeded, dtype=torch.float64)
+            trace_indices = torch.from_numpy(trace_indices)
+            cell_indices = torch.from_numpy(cell_indices)
+            cell_passes = torch.from_numpy(cell_passes)
 
-        cell_velocities = torch.index_select(self.velocities_tensor.ravel(), 0, cell_indices)
-        tt_pred_tensor.scatter_add_(0, trace_indices, 1000 * cell_passes / cell_velocities)
-        tt_pred[succeeded] = tt_pred_tensor.detach().numpy()
+            cell_velocities = torch.index_select(self.velocities_tensor.ravel(), 0, cell_indices)
+            tt_pred_tensor.scatter_add_(0, trace_indices, 1000 * cell_passes / cell_velocities)
+            tt_pred[succeeded] = tt_pred_tensor.detach().numpy()
         return tt_pred
 
     def estimate_traveltimes_batch(self, batch, spatial_margin=3, crop_vertically=False, vertical_margin=1, n_sweeps=2,

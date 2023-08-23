@@ -103,8 +103,8 @@ def raytrace(src, src_slowness, dst_list, tt_grid, z_grad, x_grad, y_grad, z, x,
             if not straight:
                 tt_cur = vinterp3d(z, x, y, tt_grid, cur, src, src_slowness)
                 if tt_cur >= tt_prev:
+                    cur = ray[step_ix].copy()
                     straight = True
-                    cur = ray[step_ix]
                     continue
                 tt_prev = tt_cur
 
