@@ -1,10 +1,13 @@
 """Utilities for processing of vertical functions"""
 
+from copy import deepcopy
+
 import numpy as np
 import matplotlib.pyplot as plt
 
 from .general_utils import to_list
 from .interpolation import interp1d
+from ..decorators import plotter
 from .coordinates import Coordinates
 from ..decorators import plotter
 
@@ -192,6 +195,26 @@ class VFUNC:
         """
         coords, data_x, data_y = read_single_vfunc(path, coords_cols=coords_cols, encoding=encoding)
         return cls(data_x, data_y, coords=coords)
+
+    @plotter(figsize=(7,5))
+    def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
+        ax.plot(self.data_y, self.data_x, **kwargs)
+        if self.bounds is not None and plot_bounds:
+            ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
+        if invert:
+            ax.invert_yaxis()
+
+    def copy(self):
+        return deepcopy(self)
+
+    def recalculate(self, start_x, end_x):
+        valid_x_mask = (self.data_x > start_x) & (self.data_x < end_x)
+        valid_x = np.sort(self.data_x[valid_x_mask])
+        new_x = np.concatenate([[start_x], valid_x, [end_x]])
+        self.data_x = new_x
+        self.data_y = self(new_x)
+        return self
+
 
     def dump(self, path, encoding="UTF-8"):
         """Dump the vertical function to a file in Paradigm Echos VFUNC format.

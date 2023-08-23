@@ -24,6 +24,14 @@ def stacked_amplitude_sum(corrected_gather):
     return numerator, denominator
 
 
+def stacked_amplitude_sum(corrected_gather):
+    numerator = np.empty_like(corrected_gather[0])
+    denominator = np.ones_like(corrected_gather[0])
+    for i in prange(corrected_gather.shape[1]):
+        numerator[i] = np.nansum(corrected_gather[:, i])
+    return numerator, denominator
+
+
 def normalized_stacked_amplitude(corrected_gather):
     numerator = np.empty_like(corrected_gather[0])
     denominator = np.empty_like(corrected_gather[0])

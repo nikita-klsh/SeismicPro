@@ -75,6 +75,16 @@ def apply_constant_velocity_nmo(gather_data, offsets, sample_interval, delay, ti
                       interpolate=interpolate, fill_value=fill_value, out=corrected_gather_data[:, i])
     return corrected_gather_data
 
+@njit(nogil=True, parallel=True)
+def apply_constant_velocity_lmo(gather_data, offsets, sample_interval, delay, times, velocity,
+                                interpolate=True, fill_value=np.nan):
+    corrected_gather_data = np.full((len(offsets), len(times)), fill_value=fill_value, dtype=gather_data.dtype)
+    for i in prange(len(times)):
+        hodograph_times = times[i] + (offsets / velocity)
+        get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times,
+                      interpolate=interpolate, fill_value=fill_value, out=corrected_gather_data[:, i])
+    return corrected_gather_data
+
 
 @njit(nogil=True, parallel=True)
 def apply_nmo(gather_data, offsets, sample_interval, delay, times, velocities, velocities_grad,

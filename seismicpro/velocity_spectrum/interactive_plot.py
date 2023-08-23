@@ -16,7 +16,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
     velocity by switching the view. The width of the hodograph matches the window size used to calculate the spectrum
     on both views. An initial click is performed on the maximum spectrum value.
     """
-    def __init__(self, velocity_spectrum, title=None, sharey=True, gather_plot_kwargs=None,
+    def __init__(self, velocity_spectrum, half_win_size=None, title=None, gather_plot_kwargs=None, 
                  figsize=(4.5, 4.5), fontsize=8, orientation="horizontal", **kwargs):
         kwargs = {"fontsize": fontsize, **kwargs}
         text_kwargs = get_text_formatting_kwargs(**kwargs)
@@ -31,11 +31,11 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         self.click_vel = None
         self.velocity_spectrum = velocity_spectrum
         self.gather = self.velocity_spectrum.gather.copy(ignore="data").sort('offset')
-        self.plot_velocity_spectrum = partial(self.velocity_spectrum._plot, title=None, **kwargs)
+        plot_velocity_spectrum = super(type(velocity_spectrum), velocity_spectrum).plot   #there must be better way
+        self.plot_velocity_spectrum = partial(plot_velocity_spectrum, title=None, **kwargs)
+        self.half_win_size = half_win_size or self.velocity_spectrum.half_win_size_samples
 
         super().__init__(orientation=orientation)
-        if sharey:
-            self.aux.ax.sharey(self.main.ax)
 
     def construct_main_plot(self):
         """Construct a clickable velocity spectrum plot."""
@@ -54,22 +54,18 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         """Get title of the gather plot."""
         if (self.click_time is None) or (self.click_vel is None):
             return "Gather"
-        return f"Hodograph from {self.click_time:.0f} ms with {self.click_vel:.2f} km/s velocity"
+        return f"Hodograph from {self.click_time:.0f} ms with {self.click_vel:.2f} m/s velocity"
 
     def get_gather(self, corrected=False):
         """Get an optionally corrected gather."""
-        if not corrected:
-            return self.gather
-        max_stretch_factor = self.velocity_spectrum.max_stretch_factor
-        return self.gather.copy(ignore=["headers", "data", "samples"]) \
-                          .apply_nmo(self.click_vel * 1000, max_stretch_factor=max_stretch_factor)
+        raise NotImplementedError
 
     def get_hodograph_times(self, corrected):
         """Get hodograph times if a click has been performed."""
         if (self.click_time is None) or (self.click_vel is None):
             return None
         if not corrected:
-            return np.sqrt(self.click_time**2 + self.gather.offsets**2/self.click_vel**2)
+            return self.hodograph_func(self.click_time, self.gather.offsets, self.click_vel / 1000)
         return np.full_like(self.gather.offsets, self.click_time)
 
     def plot_gather(self, ax, corrected=False):
@@ -80,20 +76,18 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         hodograph_times = self.get_hodograph_times(corrected=corrected)
         if hodograph_times is None:
             return
-        hodograph_y = self.velocity_spectrum.times_to_indices(hodograph_times) - 0.5  # Correction for pixel center
-        half_window = self.velocity_spectrum.half_win_size_samples
-        hodograph_low = np.clip(hodograph_y - half_window, 0, self.gather.n_times - 1)
-        hodograph_high = np.clip(hodograph_y + half_window, 0, self.gather.n_times - 1)
+        hodograph_y = self.velocity_spectrum.gather.times_to_indices(hodograph_times) - 0.5  # Correction for pixel center
+        hodograph_low = np.clip(hodograph_y - self.half_win_size, 0, self.gather.n_times - 1)
+        hodograph_high = np.clip(hodograph_y + self.half_win_size, 0, self.gather.n_times - 1)
         ax.fill_between(np.arange(len(hodograph_y)), hodograph_low, hodograph_high, color="tab:blue", alpha=0.5)
 
+    def get_velocity_time_by_coords(self, coords):
+        return coords[0], coords[1]
+    
     def click(self, coords):
         """Highlight the hodograph defined by click location on the gather plot."""
-        click_time, click_vel = self.velocity_spectrum.get_time_velocity_by_indices(coords[1], coords[0])
-        if (click_time is None) or (click_vel is None):
-            return None  # Ignore click
         self.aux.view_button.disabled = False
-        self.click_time = click_time
-        self.click_vel = click_vel
+        self.click_vel, self.click_time = self.get_velocity_time_by_coords(coords)
         self.aux.redraw()
         return coords
 
@@ -103,3 +97,40 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         self.click_vel = None
         self.aux.set_view(0)
         self.aux.view_button.disabled = True
+
+
+class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
+    
+    @staticmethod
+    def hodograph_func(t0, x, v):
+        return (t0 ** 2 + (x/v) ** 2) ** 0.5
+
+    def get_gather(self, corrected=False):
+        """Get an optionally corrected gather."""
+        if not corrected:
+            return self.gather
+        max_stretch_factor = self.velocity_spectrum.correction_func_args[0]
+        return self.gather.copy(ignore=["headers", "data", "samples"]) \
+                          .apply_nmo(self.click_vel, max_stretch_factor=max_stretch_factor)
+
+
+class SlantStackPlot(VelocitySpectrumPlot):
+    
+    @staticmethod
+    def hodograph_func(t0, x, v):
+        return t0 + x/v
+
+    def get_gather(self, corrected=False):
+        """Get an optionally corrected gather."""
+        if not corrected:
+            return self.gather
+        return self.gather.copy(ignore=["headers", "data", "samples"]) \
+                          .apply_lmo(self.click_vel, 0)
+
+
+class RedidualVelocitySpectrumPlot(VerticalVelocitySpectrumPlot):
+    
+    def get_velocity_time_by_coords(self, coords):
+        click_margin, click_time = coords[0], coords[1]
+        click_vel = self.velocity_spectrum.stacking_velocity(click_time) * (1 + click_margin)
+        return click_vel, click_time
