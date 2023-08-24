@@ -30,32 +30,108 @@ class TomoModel(NearSurfaceModel):
         self.loss_hist = []
         self.reg_hist = []
 
+    @property
+    def origin(self):
+        return self.grid.origin
+
+    @property
+    def cell_size(self):
+        return self.grid.cell_size
+
+    @property
+    def shape(self):
+        return self.grid.shape
+
+    @property
+    def z_cell_bounds(self):
+        return self.grid.z_cell_bounds
+
+    @property
+    def x_cell_bounds(self):
+        return self.grid.x_cell_bounds
+
+    @property
+    def y_cell_bounds(self):
+        return self.grid.y_cell_bounds
+
+    @property
+    def z_cell_centers(self):
+        return self.grid.z_cell_centers
+
+    @property
+    def x_cell_centers(self):
+        return self.grid.x_cell_centers
+
+    @property
+    def y_cell_centers(self):
+        return self.grid.y_cell_centers
+
+    @property
+    def z_origin(self):
+        return self.grid.z_origin
+
+    @property
+    def x_origin(self):
+        return self.grid.x_origin
+
+    @property
+    def y_origin(self):
+        return self.grid.y_origin
+
+    @property
+    def z_cell_size(self):
+        return self.grid.z_cell_size
+
+    @property
+    def x_cell_size(self):
+        return self.grid.x_cell_size
+
+    @property
+    def y_cell_size(self):
+        return self.grid.y_cell_size
+
+    @property
+    def n_z_cells(self):
+        return self.grid.n_z_cells
+
+    @property
+    def n_x_cells(self):
+        return self.grid.n_x_cells
+
+    @property
+    def n_y_cells(self):
+        return self.grid.n_y_cells
+
+    @property
+    def n_cells(self):
+        return self.grid.n_cells
+
     # IO
 
     @staticmethod
     @njit(nogil=True, parallel=True)
-    def interp_velocities(elevations, velocities, z_cell_centers):
-        res_velocities = np.empty((len(velocities), len(z_cell_centers)), dtype=velocities.dtype)
+    def interp_velocities(elevations, velocities, z_origin, z_cell_size, z_n_cells):
+        z_cell_starts = z_origin + z_cell_size * np.arange(z_n_cells)
+        n_layers = elevations.shape[1]
+        res_velocities = np.empty((len(velocities), z_n_cells), dtype=velocities.dtype)
         for i in prange(len(velocities)):
-            res_velocities[i] = velocities[i, np.searchsorted(elevations[i], z_cell_centers)]
+            res_velocities[i] = velocities[i, np.searchsorted(elevations[i], z_cell_starts)]
+            for j in range(n_layers):
+                float_layer_cell_ix = (elevations[i, j] - z_origin) / z_cell_size
+                if 0 < float_layer_cell_ix < z_n_cells:
+                    layer_cell_ix = math.floor(float_layer_cell_ix)
+                    weight = float_layer_cell_ix - layer_cell_ix
+                    res_velocities[i, layer_cell_ix] = velocities[i, j] * weight + velocities[i, j + 1] * (1 - weight)
         return res_velocities
 
     @classmethod
     def from_layered_model(cls, grid, layered_model, smoothing_radius=None):
-        z_min, x_min, y_min = grid.origin
-        nz, nx, ny = grid.shape
-        dz, dx, dy = grid.cell_size
-
-        x_cell_centers = x_min + dx / 2 + dx * np.arange(nx)
-        y_cell_centers = y_min + dy / 2 + dy * np.arange(ny)
-        z_cell_centers = z_min + dz / 2 + dz * np.arange(nz)
-
         model_params = np.column_stack([
             layered_model.elevations_tensor.detach().cpu().numpy()[:, ::-1],
             1000 / layered_model.slownesses_tensor.detach().cpu().numpy()[:, ::-1],
             1000 / layered_model.weathering_slowness_tensor.detach().cpu().numpy(),
-        ])  # elevations and velocities should be monotonically increasing for searchsorted to properly work
-        spatial_coords = np.array(np.meshgrid(x_cell_centers, y_cell_centers)).T.reshape(-1, 2)
+        ])  # interp_velocities expects that elevations are sorted in ascending order, while velocities - in descending
+        spatial_coords = np.array(np.meshgrid(grid.x_cell_centers, grid.y_cell_centers)).T.reshape(-1, 2)
 
         if smoothing_radius is None:
             spatial_params = layered_model.grid.interpolate(model_params, spatial_coords)
@@ -67,16 +143,17 @@ class TomoModel(NearSurfaceModel):
         elevations = spatial_params[:, :layered_model.n_refractors]
         velocities = spatial_params[:, layered_model.n_refractors:]
 
-        spatial_velocities = cls.interp_velocities(elevations, velocities, z_cell_centers)
-        velocity_grid = np.require(spatial_velocities.reshape((nx, ny, nz)).transpose((2, 0, 1)),
-                                   dtype=np.float64, requirements="C")
+        spatial_velocities = cls.interp_velocities(elevations, velocities, grid.z_origin, grid.z_cell_size,
+                                                   grid.z_n_cells)
+        spatial_velocities = spatial_velocities.reshape(grid.n_x_cells, grid.n_y_cells, grid.n_z_cells)
+        velocity_grid = np.require(spatial_velocities.transpose((2, 0, 1)), dtype=np.float64, requirements="C")
         return cls(grid, velocity_grid)
 
     @classmethod
     def from_gradient_model(cls, grid, top_velocity, bottom_velocity):
         if (top_velocity <= 0) or (bottom_velocity <= 0):
             raise ValueError
-        velocities = np.linspace(bottom_velocity, top_velocity, grid.shape[0]).reshape(-1, 1, 1)
+        velocities = np.linspace(bottom_velocity, top_velocity, grid.n_z_cells).reshape(-1, 1, 1)
         return cls(grid, velocities)
 
     # Traveltime estimation
