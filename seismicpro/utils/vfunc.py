@@ -207,12 +207,21 @@ class VFUNC:
     def copy(self):
         return deepcopy(self)
 
-    def recalculate(self, start_x, end_x):
+    def recalculate(self, start_x=None, end_x=None):
+        start_x = start_x or self.data_x.min()
+        end_x = end_x or self.data_x.max()
         valid_x_mask = (self.data_x > start_x) & (self.data_x < end_x)
         valid_x = np.sort(self.data_x[valid_x_mask])
         new_x = np.concatenate([[start_x], valid_x, [end_x]])
         self.data_x = new_x
         self.data_y = self(new_x)
+        return self
+
+    def resample(self, sample_interval):
+        new_x = np.arange(self.data_x.min(), self.data_x.max() + sample_interval, sample_interval)
+        new_y = self(new_x)
+        self.data_x = new_x
+        self.data_y = new_y
         return self
 
 
@@ -245,14 +254,3 @@ class VFUNC:
             ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
         if invert:
             ax.invert_yaxis()
-
-    def filter(self, start=None, end=None):
-        start = start or self.data_x.min()
-        end = end or self.data_x.max()
-        mask = (self.data_x >= start) & (self.data_x <= end)
-        self.data_y = self.data_y[mask]
-        self.data_x = self.data_x[mask]
-
-    def copy(self):
-        from copy import copy
-        return copy(self)

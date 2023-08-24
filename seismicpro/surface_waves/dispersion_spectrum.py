@@ -30,7 +30,7 @@ class DispersionSpectrum(Spectrum):
         spectrum_data = spectrum_func(ft, velocities, frequencies, gather.offsets, **kwargs)
         spectrum_data = complex_to_real(spectrum_data)
         spectrum =  cls(spectrum_data, velocities, frequencies)
-        spectrum.sample_interval = gather.sample_rate / gather.n_samples
+        spectrum.times_interval = gather.sample_rate / gather.n_samples
         spectrum.delay = frequencies[0]
         spectrum.gather = gather.copy()
         spectrum.coords = gather.coords
@@ -73,7 +73,7 @@ class DispersionSpectrum(Spectrum):
         return spectrum
 
     def calculate_dispersion_curve(self, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
-                                      acceleration_bounds="adaptive", times_step=100, max_n_skips=2):
+                                      acceleration_bounds="adaptive", times_step=0.1, max_n_skips=2):
         
         return DispersionCurve.from_dispersion_spectrum(self, init=init, bounds=bounds, relative_margin=relative_margin, velocity_step=velocity_step,
                                       acceleration_bounds=acceleration_bounds, times_step=times_step, max_n_skips=max_n_skips)

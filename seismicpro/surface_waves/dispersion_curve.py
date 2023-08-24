@@ -1,4 +1,5 @@
 from copy import copy
+from functools import partial
 
 import numpy as np
 from disba import surf96
@@ -13,8 +14,7 @@ from ..stacking_velocity.velocity_model import calculate_stacking_velocity
 class DispersionCurve(VFUNC):
 
     def __init__(self, frequencies, velocities, coords=None):
-        ix = np.argsort(frequencies)[::-1]
-        super().__init__(frequencies[ix], velocities[ix], coords)
+        super().__init__(frequencies, velocities, coords)
         self.bounds = None
 
     @property
@@ -79,14 +79,22 @@ class DispersionCurve(VFUNC):
         """
         return np.maximum(super().__call__(frequencies), 0)
 
-    @batch_method(target="for", args_to_unpack="init", copy_src=False)
-    def invert(self, fmin=None, fmax=None, dz=0.005, bounds=(0.1, 5), vpvs=2.5, kd=2, alpha=0.005):
-        target_dispersion_curve = self.copy()
-        target_dispersion_curve.filter(fmin, fmax)
 
-        vs_law = VelocityLaw.from_dispersion_curve(target_dispersion_curve, kd, vpvs)
-        elevations = np.arange(0, vs_law.depths.max() / 1000 + dz, dz)
-        vs = vs_law(elevations) / 1000
+    @classmethod
+    def from_elastic_model(cls, vs, vp=None, rho=None, f=None, dc=0.005):
+        f = f or vs.produced_by.frequencies
+        v = cls.func(vs.velocities / 1000, 1 / f, vs.thickness / 1000, dc=dc)
+        return DispersionCurve(f, v * 1000)
+    
+
+    @batch_method(target="for", args_to_unpack="init", copy_src=False)
+    def invert(self, fmin=None, fmax=None, dz=0.005, bounds=(0.1, 5), vpvs=2, kd=2, alpha=0.005):
+        target_dispersion_curve = self.copy()
+        target_dispersion_curve.recalculate(fmin, fmax)
+
+        vs_law = VelocityLaw.from_dispersion_curve(target_dispersion_curve, kd)
+        elevations = np.arange(dz, vs_law.depths.max() / 1000 + dz, dz)
+        vs = vs_law(elevations * 1000) / 1000
         vp = vs * vpvs
         rho = vp * 0.32 + 0.77
         thickness = np.array([dz] * len(elevations))
@@ -94,21 +102,14 @@ class DispersionCurve(VFUNC):
         dv = 0.3
         boarders = np.random.choice([-1, 1], (len(vs), len(vs)))
         initial_simplex = np.concatenate([vs.reshape(1, -1), vs + dv * boarders], axis=0)
+        initial_simplex = None
 
-        from functools import partial
         loss = partial(self.loss, alpha=alpha, poison=vpvs)
         scipy_res = minimize(loss, args=(target_dispersion_curve.velocities / 1000, target_dispersion_curve.periods, thickness), x0=vs, bounds=[bounds] * len(vs), 
                              method='Nelder-Mead', tol=0.010, options=dict(maxfev=2000, initial_simplex=initial_simplex))
-        law = VelocityLaw(elevations, scipy_res.x[::-1] * 1000, coords=self.coords)
+        law = VelocityLaw(elevations * 1000, scipy_res.x * 1000, coords=self.coords)
         law.produced_by = target_dispersion_curve
         return law
-
-
-    @classmethod
-    def from_elastic_model(cls, vs, vp=None, rho=None, f=None, dc=0.005):
-        f = f or vs.produced_by.frequencies
-        v = cls.func(vs.velocities / 1000, 1 / f, vs.thickness, dc=dc)
-        return DispersionCurve(f, v * 1000)
 
 
     @staticmethod
@@ -132,9 +133,6 @@ class VelocityLaw(VFUNC):
     def __init__(self, depths, velocities, coords=None):
         super().__init__(depths, velocities, coords)
 
-    def copy(self):
-        return copy(self)
-
     @property
     def depths(self):
         """1d np.ndarray: An array with depth values for velocity laws. Measured in meters."""
@@ -153,13 +151,7 @@ class VelocityLaw(VFUNC):
     def from_dispersion_curve(cls, dispersion_curve, wavelenght_to_depath=2, rayleigh_to_shear=1.1):
         depths = dispersion_curve.wavelenghts / wavelenght_to_depath
         vs = dispersion_curve.velocities * rayleigh_to_shear
-        law = cls(depths, vs)
+        ix = np.argsort(depths)
+        law = cls(depths[ix], vs[ix])
         law.produced_by = dispersion_curve
         return law
-
-    def filter(self, fmin=None, fmax=None):
-        fmin = fmin or self.frequencies.min()
-        fmax = fmax or self.frequencies.max()
-        mask = (self.frequencies >= fmin) & (self.frequencies <= fmax)
-        self.frequencies = self.frequencies[mask]
-        self.velocities = self.velocities[mask]
