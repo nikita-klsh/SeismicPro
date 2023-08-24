@@ -19,15 +19,21 @@ class NearSurfaceModel:
     def change_grid(self, grid, **kwargs):
         raise NotImplementedError
 
+    # Dataset generation
+
     def create_dataset(self, survey=None, first_breaks_header=HDR_FIRST_BREAK, uphole_correction_method="auto",
                        **kwargs):
         raise NotImplementedError
+
+    # Model fitting and inference
 
     def fit(self, dataset, batch_size, n_epochs, bar=True, **kwargs):
         raise NotImplementedError
 
     def predict(self, dataset, batch_size, bar=True, predicted_first_breaks_header=None):
         raise NotImplementedError
+
+    # Statics calculation
 
     def calculate_source_statics(self, source_headers, source_id_cols, uphole_correction_method, **kwargs):
         raise NotImplementedError
@@ -68,7 +74,7 @@ class NearSurfaceModel:
                                                            **kwargs)
             source_statics_list.append(source_statics)
 
-            receiver_headers = group_source_headers(sur, receiver_id_cols)
+            receiver_headers = group_receiver_headers(sur, receiver_id_cols)
             receiver_statics = self.calculate_receiver_statics(receiver_headers, receiver_id_cols, **kwargs)
             receiver_statics_list.append(receiver_statics)
 
@@ -77,6 +83,8 @@ class NearSurfaceModel:
         receiver_statics = receiver_statics_list[0] if is_single_survey else receiver_statics_list
         return Statics(survey, source_statics, receiver_statics, source_id_cols=source_id_cols,
                        receiver_id_cols=receiver_id_cols, validate=False)
+
+    # Model visualization
 
     def plot_loss(self, show_reg=True, figsize=(10, 3)):
         raise NotImplementedError
