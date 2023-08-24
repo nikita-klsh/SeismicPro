@@ -8,16 +8,14 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm.auto import tqdm
 
 from .profile_plot import ProfilePlot
-from ..statics import Statics
-from ..utils import get_uphole_correction_method
-from ...survey import Survey
-from ...utils import to_list, align_args, IDWInterpolator
+from ..model import NearSurfaceModel
+from ...utils import to_list, IDWInterpolator
 from ...const import HDR_FIRST_BREAK
 
 
-class LayeredModel:
+class LayeredModel(NearSurfaceModel):
     def __init__(self, grid, velocities, elevations=None, thicknesses=None, device="cpu"):
-        self.grid = grid
+        super().__init__(grid)
 
         # Process velocities and validate them
         velocities = self.broadcast_to_grid(velocities)
@@ -540,8 +538,8 @@ class LayeredModel:
     # Statics calculation
 
     @torch.no_grad()
-    def estimate_statics(self, coords, intermediate_datum=None, intermediate_datum_refractor=None, final_datum=None,
-                         replacement_velocity=None):
+    def calculate_coords_statics(self, coords, intermediate_datum=None, intermediate_datum_refractor=None,
+                                 final_datum=None, replacement_velocity=None):
         # Interpolate layer elevations and thicknesses at given coords
         coords, is_1d = self.process_coords(coords)
         indices, weights = self.grid.get_interpolation_params(coords[:, :2])
@@ -584,98 +582,34 @@ class LayeredModel:
             return statics[0]
         return statics
 
-    def _get_source_statics(self, survey, index_cols, uphole_correction_method, **kwargs):
-        index_cols = to_list(index_cols)
-        all_cols_set = set(index_cols + ["SourceX", "SourceY", "SourceSurfaceElevation"])
-        if "SourceDepth" in survey.available_headers:
-            all_cols_set.add("SourceDepth")
-        if "SourceUpholeTime" in survey.available_headers:
-            all_cols_set.add("SourceUpholeTime")
-        all_cols = list(all_cols_set)
-        non_index_cols = list(all_cols_set - set(index_cols))
-
-        statics = pl.from_pandas(survey.get_headers(all_cols), rechunk=False)
-        is_duplicated_expr = pl.all_horizontal([pl.n_unique(col) == 1 for col in non_index_cols]).alias("IsUnique")
-        statics = statics.groupby(index_cols).agg(pl.mean(non_index_cols), is_duplicated_expr).to_pandas()
-
-        if not statics["IsUnique"].all():
-            warnings.warn("Some sources have non-unique locations or uphole data. "
-                          "Calculated statics may be inaccurate.")
-
-        source_coords = statics[["SourceX", "SourceY", "SourceSurfaceElevation"]].to_numpy()
-        statics["SurfaceStatics"] = self.estimate_statics(source_coords, **kwargs)
+    def calculate_source_statics(self, source_headers, source_id_cols, uphole_correction_method, **kwargs):
+        statics = source_headers[to_list(source_id_cols)]
+        source_coords = source_headers[["SourceX", "SourceY", "SourceSurfaceElevation"]].to_numpy()
+        statics["SurfaceStatics"] = self.calculate_coords_statics(source_coords, **kwargs)
         if uphole_correction_method == "time":
             statics["Statics"] = statics["SurfaceStatics"] - statics["SourceUpholeTime"]
         elif uphole_correction_method == "depth":
             source_elevations = source_coords[:, -1] - statics["SourceDepth"].to_numpy()
             source_coords = np.column_stack([source_coords[:, :2], source_elevations])
-            statics["Statics"] = self.estimate_statics(source_coords, **kwargs)
+            statics["Statics"] = self.calculate_coords_statics(source_coords, **kwargs)
         else:
             statics["Statics"] = statics["SurfaceStatics"]
         return statics
 
-    def _get_receiver_statics(self, survey, index_cols, **kwargs):
-        index_cols = to_list(index_cols)
-        all_cols_set = set(index_cols + ["GroupX", "GroupY", "ReceiverGroupElevation"])
-        all_cols = list(all_cols_set)
-        non_index_cols = list(all_cols_set - set(index_cols))
-
-        statics = pl.from_pandas(survey.get_headers(all_cols), rechunk=False)
-        is_duplicated_expr = pl.all_horizontal([pl.n_unique(col) == 1 for col in non_index_cols]).alias("IsUnique")
-        statics = statics.groupby(index_cols).agg(pl.mean(non_index_cols), is_duplicated_expr).to_pandas()
-
-        if not statics["IsUnique"].all():
-            warnings.warn("Some receivers have non-unique locations. Calculated statics may be inaccurate.")
-
-        receiver_coords = statics[["GroupX", "GroupY", "ReceiverGroupElevation"]].to_numpy()
-        statics["Statics"] = self.estimate_statics(receiver_coords, **kwargs)
+    def calculate_receiver_statics(self, receiver_headers, receiver_id_cols, **kwargs):
+        statics = receiver_headers[to_list(receiver_id_cols)]
+        receiver_coords = receiver_headers[["GroupX", "GroupY", "ReceiverGroupElevation"]].to_numpy()
+        statics["Statics"] = self.calculate_coords_statics(receiver_coords, **kwargs)
         return statics
 
     def calculate_statics(self, survey=None, uphole_correction_method="auto", source_id_cols=None,
                           receiver_id_cols=None, intermediate_datum=None, intermediate_datum_refractor=None,
                           final_datum=None, replacement_velocity=None):
-        if survey is None:
-            if not self.grid.has_survey:
-                raise ValueError("A survey to calculate statics for must be passed")
-            survey = self.grid.survey
-        survey_list = to_list(survey)
-        is_single_survey = isinstance(survey, Survey)
-        _, uphole_correction_method_list = align_args(survey_list, uphole_correction_method)
-
-        if source_id_cols is None:
-            if any(sur.source_id_cols != survey_list[0].source_id_cols for sur in survey_list):
-                raise ValueError
-            if survey_list[0].source_id_cols is None:
-                raise ValueError
-            source_id_cols = survey_list[0].source_id_cols
-
-        if receiver_id_cols is None:
-            if any(sur.receiver_id_cols != survey_list[0].receiver_id_cols for sur in survey_list):
-                raise ValueError
-            if survey_list[0].receiver_id_cols is None:
-                raise ValueError
-            receiver_id_cols = survey_list[0].receiver_id_cols
-
-        statics_kwargs = {
-            "intermediate_datum": intermediate_datum,
-            "intermediate_datum_refractor": intermediate_datum_refractor,
-            "final_datum": final_datum,
-            "replacement_velocity": replacement_velocity,
-        }
-        source_statics_list = []
-        receiver_statics_list = []
-        for sur, correction_method in zip(survey_list, uphole_correction_method_list):
-            correction_method = get_uphole_correction_method(sur, correction_method)
-            source_statics = self._get_source_statics(sur, source_id_cols, correction_method, **statics_kwargs)
-            source_statics_list.append(source_statics)
-
-            receiver_statics = self._get_receiver_statics(sur, receiver_id_cols, **statics_kwargs)
-            receiver_statics_list.append(receiver_statics)
-
-        survey = survey_list[0] if is_single_survey else survey_list
-        source_statics = source_statics_list[0] if is_single_survey else source_statics_list
-        receiver_statics = receiver_statics_list[0] if is_single_survey else receiver_statics_list
-        return Statics(survey, source_statics, source_id_cols, receiver_statics, receiver_id_cols, validate=False)
+        return super().calculate_statics(survey=survey, uphole_correction_method=uphole_correction_method,
+                                         source_id_cols=source_id_cols, receiver_id_cols=receiver_id_cols,
+                                         intermediate_datum=intermediate_datum,
+                                         intermediate_datum_refractor=intermediate_datum_refractor,
+                                         final_datum=final_datum, replacement_velocity=replacement_velocity)
 
     # Model visualization
 
