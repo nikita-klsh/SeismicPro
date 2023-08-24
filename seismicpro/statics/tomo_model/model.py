@@ -377,108 +377,90 @@ class TomoModel(NearSurfaceModel):
 
     # Statics calculation
 
-    def _get_source_statics(self, survey, index_cols, uphole_correction_method, datum):
-        index_cols = to_list(index_cols)
-        all_cols_set = set(index_cols + ["SourceX", "SourceY", "SourceSurfaceElevation"])
-        if "SourceDepth" in survey.available_headers:
-            all_cols_set.add("SourceDepth")
-        if "SourceUpholeTime" in survey.available_headers:
-            all_cols_set.add("SourceUpholeTime")
-        all_cols = list(all_cols_set)
-        non_index_cols = list(all_cols_set - set(index_cols))
+    def calculate_coords_statics_direct(self, coords, datum):
+        high_elevations = np.maximum(coords[:, 0], datum)
+        low_elevations = np.minimum(coords[:, 0], datum)
+        total_pass_dist = high_elevations - low_elevations
 
-        statics = pl.from_pandas(survey.get_headers(all_cols), rechunk=False)
-        is_duplicated_expr = pl.all_horizontal([pl.n_unique(col) == 1 for col in non_index_cols]).alias("IsUnique")
-        statics = statics.groupby(index_cols).agg(pl.mean(non_index_cols), is_duplicated_expr).to_pandas()
+        dist_to_layers = self.z_cell_bounds[1:-1] - low_elevations.reshape(-1, 1)
+        dist_to_layers[dist_to_layers < 0] = 0
+        vertical_pass_dist = np.diff(dist_to_layers, prepend=0, axis=1)
+        vertical_pass_dist = np.column_stack([vertical_pass_dist, total_pass_dist + 1])
 
-        if not statics["IsUnique"].all():
-            warnings.warn("Some sources have non-unique locations or uphole data. "
-                          "Calculated statics may be inaccurate.")
+        # Overflow is guaranteed to occur since vertical_pass_dist is padded with a value greater than total_pass_dist
+        overflow_mask = vertical_pass_dist.cumsum(axis=1) > total_pass_dist.reshape(-1, 1)
+        vertical_pass_dist[overflow_mask] = 0
+        residual_pass_dist = total_pass_dist - vertical_pass_dist.sum(axis=1)
+        overflow_ix = np.argmax(overflow_mask, axis=1)
+        vertical_pass_dist[np.arange(len(coords)), overflow_ix] = residual_pass_dist
 
-        source_coords = statics[["SourceSurfaceElevation", "SourceX", "SourceY"]].to_numpy()
-        if uphole_correction_method == "time":
-            locations = [(coord, np.array([[datum, coord[1], coord[2]]])) for coord in source_coords]
-            st = self.estimate_traveltimes_batch(locations, spatial_margin=3, crop_vertically=True,
-                                                 vertical_margin=1, n_sweeps=2, max_n_steps=None, n_workers=None,
-                                                 desc="Common source gathers processed", bar=True)
-            statics["SurfaceStatics"] = np.concatenate(st)
-            statics["Statics"] = statics["SurfaceStatics"] - statics["SourceUpholeTime"]
-        elif uphole_correction_method == "depth":
-            locations = [(np.array([datum, coord[1], coord[2]]),
-                          np.stack([coord, [coord[0] - depth, coord[1], coord[2]]]))
-                         for coord, depth in zip(source_coords, statics["SourceDepth"].to_numpy())]
-            st = self.estimate_traveltimes_batch(locations, spatial_margin=3, crop_vertically=True,
-                                                 vertical_margin=1, n_sweeps=2, max_n_steps=None, n_workers=None,
-                                                 desc="Common source gathers processed", bar=True)
-            statics[["SurfaceStatics", "Statics"]] = np.stack(st)
-        else:
-            locations = [(coord, np.array([[datum, coord[1], coord[2]]])) for coord in source_coords]
-            st = self.estimate_traveltimes_batch(locations, spatial_margin=3, crop_vertically=True,
-                                                 vertical_margin=1, n_sweeps=2, max_n_steps=None, n_workers=None,
-                                                 desc="Common source gathers processed", bar=True)
-            statics["SurfaceStatics"] = np.concatenate(st)
-            statics["Statics"] = statics["SurfaceStatics"]
+        cell_ix = ((coords[:, 1:] - self.origin[1:]) // self.cell_size[1:]).astype(np.int32)
+        cell_ix = np.clip(cell_ix, 0, self.shape[1:] - 1)
+        coords_velocities = self.velocities_tensor.detach().cpu().numpy()[:, cell_ix[:, 0], cell_ix[:, 1]].T
+
+        statics = np.sign(coords[:, 0] - datum) * (1000 * vertical_pass_dist / coords_velocities).sum(axis=1)
         return statics
 
-    def _get_receiver_statics(self, survey, index_cols, datum):
-        index_cols = to_list(index_cols)
-        all_cols_set = set(index_cols + ["GroupX", "GroupY", "ReceiverGroupElevation"])
-        all_cols = list(all_cols_set)
-        non_index_cols = list(all_cols_set - set(index_cols))
+    def calculate_source_statics(self, source_headers, source_id_cols, uphole_correction_method, datum, raytrace=True,
+                                 spatial_margin=3, vertical_margin=1, n_sweeps=2, max_n_steps=None, n_workers=None,
+                                 bar=True):
+        statics = source_headers[to_list(source_id_cols)]
+        source_surface_coords = source_headers[["SourceSurfaceElevation", "SourceX", "SourceY"]].to_numpy()
+        statics["SurfaceStatics"] = self.calculate_coords_statics_direct(source_surface_coords, datum)
+        raytracing_kwargs = {"spatial_margin": spatial_margin, "crop_vertically": True,
+                             "vertical_margin": vertical_margin, "n_sweeps": n_sweeps, "max_n_steps": max_n_steps,
+                             "n_workers": n_workers, "desc": "Common source gathers processed", "bar": bar}
 
-        statics = pl.from_pandas(survey.get_headers(all_cols), rechunk=False)
-        is_duplicated_expr = pl.all_horizontal([pl.n_unique(col) == 1 for col in non_index_cols]).alias("IsUnique")
-        statics = statics.groupby(index_cols).agg(pl.mean(non_index_cols), is_duplicated_expr).to_pandas()
+        if uphole_correction_method == "depth":
+            source_elevations = source_surface_coords[:, 0] - source_headers["SourceDepth"].to_numpy()
+            source_coords = np.column_stack([source_elevations, source_surface_coords[:, 1:]])
+            statics["Statics"] = self.calculate_coords_statics_direct(source_coords, datum)
+            if raytrace:
+                datum_coords = np.column_stack([np.full_like(source_surface_coords[:, 0], datum),
+                                                source_surface_coords[:, 1:]])
+                batch = list(zip(datum_coords, np.stack([source_surface_coords, source_coords], axis=1)))
+                statics_ray = np.stack(self.estimate_traveltimes_batch(batch, **raytracing_kwargs))
+                statics_ray = np.minimum(statics[["SurfaceStatics", "Statics"]], statics_ray)
+                statics[["SurfaceStatics", "Statics"]] = statics_ray
+        else:
+            if raytrace:
+                datum_coords = np.column_stack([np.full_like(source_surface_coords[:, 0], datum),
+                                                source_surface_coords[:, 1:]])
+                batch = list(zip(source_surface_coords, datum_coords[:, None]))
+                statics_ray = np.concatenate(self.estimate_traveltimes_batch(batch, **raytracing_kwargs))
+                statics["SurfaceStatics"] = np.minimum(statics["SurfaceStatics"], statics_ray)
 
-        if not statics["IsUnique"].all():
-            warnings.warn("Some receivers have non-unique locations. Calculated statics may be inaccurate.")
+            if uphole_correction_method == "time":
+                statics["Statics"] = statics["SurfaceStatics"] - source_headers["SourceUpholeTime"]
+            else:
+                statics["Statics"] = statics["SurfaceStatics"]
 
-        receiver_coords = statics[["ReceiverGroupElevation", "GroupX", "GroupY"]].to_numpy()
-        locations = [(coord, np.array([[datum, coord[1], coord[2]]])) for coord in receiver_coords]
-        st = self.estimate_traveltimes_batch(locations, spatial_margin=3, crop_vertically=True, vertical_margin=1,
-                                             n_sweeps=2, max_n_steps=None, n_workers=None,
-                                             desc="Common receiver gathers processed", bar=True)
-        statics["Statics"] = np.concatenate(st)
+        return statics
+
+    def calculate_receiver_statics(self, receiver_headers, receiver_id_cols, datum, raytrace=True, spatial_margin=3,
+                                   vertical_margin=1, n_sweeps=2, max_n_steps=None, n_workers=None, bar=True):
+        statics = receiver_headers[to_list(receiver_id_cols)]
+        receiver_coords = receiver_headers[["ReceiverGroupElevation", "GroupX", "GroupY"]].to_numpy()
+        statics["Statics"] = self.calculate_coords_statics_direct(receiver_coords, datum)
+        raytracing_kwargs = {"spatial_margin": spatial_margin, "crop_vertically": True,
+                             "vertical_margin": vertical_margin, "n_sweeps": n_sweeps, "max_n_steps": max_n_steps,
+                             "n_workers": n_workers, "desc": "Common receiver gathers processed", "bar": bar}
+
+        if raytrace:
+            datum_coords = np.column_stack([np.full_like(receiver_coords[:, 0], datum), receiver_coords[:, 1:]])
+            batch = list(zip(receiver_coords, datum_coords[:, None]))
+            statics_ray = np.concatenate(self.estimate_traveltimes_batch(batch, **raytracing_kwargs))
+            statics["Statics"] = np.minimum(statics["Statics"], statics_ray)
         return statics
 
     def calculate_statics(self, survey=None, uphole_correction_method="auto", source_id_cols=None,
-                          receiver_id_cols=None, datum=None):
-        if survey is None:
-            if not self.grid.has_survey:
-                raise ValueError("A survey to calculate statics for must be passed")
-            survey = self.grid.survey
-        survey_list = to_list(survey)
-        is_single_survey = isinstance(survey, Survey)
-        _, uphole_correction_method_list = align_args(survey_list, uphole_correction_method)
-
-        if source_id_cols is None:
-            if any(sur.source_id_cols != survey_list[0].source_id_cols for sur in survey_list):
-                raise ValueError
-            if survey_list[0].source_id_cols is None:
-                raise ValueError
-            source_id_cols = survey_list[0].source_id_cols
-
-        if receiver_id_cols is None:
-            if any(sur.receiver_id_cols != survey_list[0].receiver_id_cols for sur in survey_list):
-                raise ValueError
-            if survey_list[0].receiver_id_cols is None:
-                raise ValueError
-            receiver_id_cols = survey_list[0].receiver_id_cols
-
-        source_statics_list = []
-        receiver_statics_list = []
-        for sur, correction_method in zip(survey_list, uphole_correction_method_list):
-            correction_method = get_uphole_correction_method(sur, correction_method)
-            source_statics = self._get_source_statics(sur, source_id_cols, correction_method, datum=datum)
-            source_statics_list.append(source_statics)
-
-            receiver_statics = self._get_receiver_statics(sur, receiver_id_cols, datum=datum)
-            receiver_statics_list.append(receiver_statics)
-
-        survey = survey_list[0] if is_single_survey else survey_list
-        source_statics = source_statics_list[0] if is_single_survey else source_statics_list
-        receiver_statics = receiver_statics_list[0] if is_single_survey else receiver_statics_list
-        return Statics(survey, source_statics, source_id_cols, receiver_statics, receiver_id_cols, validate=False)
+                          receiver_id_cols=None, datum=None, raytrace=True, spatial_margin=3, vertical_margin=1,
+                          n_sweeps=2, max_n_steps=None, n_workers=None, bar=True):
+        return super().calculate_statics(survey=survey, uphole_correction_method=uphole_correction_method,
+                                         source_id_cols=source_id_cols, receiver_id_cols=receiver_id_cols, datum=datum,
+                                         raytrace=raytrace, spatial_margin=spatial_margin,
+                                         vertical_margin=vertical_margin, n_sweeps=n_sweeps, max_n_steps=max_n_steps,
+                                         n_workers=n_workers, bar=bar)
 
     # Model visualization
 
