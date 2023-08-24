@@ -758,7 +758,6 @@ class Gather(TraceContainer, SamplesContainer):
         from ..surface_waves import DispersionSpectrum
         return DispersionSpectrum.from_gather(self, velocities, fmax, spectrum_type, complex_to_real, **kwargs)
 
-
     #------------------------------------------------------------------------#
     #             Vertical Velocity Spectrum calculation methods             #
     #------------------------------------------------------------------------#
@@ -766,6 +765,7 @@ class Gather(TraceContainer, SamplesContainer):
     @batch_method(target="threads", copy_src=False)
     def calculate_slant_stack(self, velocities):
         return SlantStack.from_gather(self, velocities)
+
 
     @batch_method(target="for", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_vertical_velocity_spectrum(self, velocities=None, stacking_velocity=None, relative_margin=0.2,

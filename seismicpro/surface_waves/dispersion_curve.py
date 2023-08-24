@@ -35,7 +35,6 @@ class DispersionCurve(VFUNC):
     @property
     def periods(self):
         return 1 / self.frequencies
-
         
     @classmethod
     def from_dispersion_spectrum(cls, spectrum, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
@@ -87,7 +86,7 @@ class DispersionCurve(VFUNC):
         return DispersionCurve(f, v * 1000)
     
 
-    @batch_method(target="for", args_to_unpack="init", copy_src=False)
+    @batch_method(target="for", copy_src=False)
     def invert(self, fmin=None, fmax=None, dz=0.005, bounds=(0.1, 5), vpvs=2, kd=2, alpha=0.005):
         target_dispersion_curve = self.copy()
         target_dispersion_curve.recalculate(fmin, fmax)

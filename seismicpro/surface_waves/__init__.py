@@ -1,1 +1,2 @@
 from .dispersion_spectrum import DispersionSpectrum
+from .dispersion_curve import DispersionCurve, VelocityLaw

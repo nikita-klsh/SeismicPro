@@ -5,8 +5,7 @@ from .dispersion_curve import DispersionCurve
 from .utils.bessel import j0, y0
 from ..spectrum import Spectrum
 from ..velocity_spectrum import SlantStack
-from ..decorators import plotter
-
+from ..decorators import plotter, batch_method
 from ..containers import SamplesContainer
 
 
@@ -72,6 +71,7 @@ class DispersionSpectrum(Spectrum):
         spectrum.gather = slant_stack.gather.copy()
         return spectrum
 
+    @batch_method(target="for", args_to_unpack="init", copy_src=False)
     def calculate_dispersion_curve(self, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
                                       acceleration_bounds="adaptive", times_step=0.1, max_n_skips=2):
         

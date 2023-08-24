@@ -7,9 +7,8 @@ import matplotlib.pyplot as plt
 
 from .general_utils import to_list
 from .interpolation import interp1d
-from ..decorators import plotter
 from .coordinates import Coordinates
-from ..decorators import plotter
+from ..decorators import plotter, batch_method
 
 
 def read_vfunc(path, coords_cols=("INLINE_3D", "CROSSLINE_3D"), encoding="UTF-8"):
@@ -207,6 +206,7 @@ class VFUNC:
     def copy(self):
         return deepcopy(self)
 
+    @batch_method(target="for", copy_src=False)
     def recalculate(self, start_x=None, end_x=None):
         start_x = start_x or self.data_x.min()
         end_x = end_x or self.data_x.max()
@@ -217,6 +217,7 @@ class VFUNC:
         self.data_y = self(new_x)
         return self
 
+    @batch_method(target="for", copy_src=False)
     def resample(self, sample_interval):
         new_x = np.arange(self.data_x.min(), self.data_x.max() + sample_interval, sample_interval)
         new_y = self(new_x)
