@@ -4,13 +4,18 @@ import numpy as np
 import polars as pl
 
 from .dataset import LayeredModelTravelTimeDataset
+from ..grid import Grid
 from ...metrics import MetricMap
 from ...const import HDR_FIRST_BREAK
 from ...utils import to_list, IDWInterpolator
 
 
-class SpatialGrid:
+class SpatialGrid(Grid):
+    dataset_class = LayeredModelTravelTimeDataset
+
     def __init__(self, coords, surface_elevations, survey=None, n_interpolation_neighbors=1):
+        super().__init__(survey)
+
         coords, _ = self.process_coords(coords)
         surface_elevations = np.broadcast_to(surface_elevations, len(coords))
 
@@ -19,7 +24,6 @@ class SpatialGrid:
         self.n_interpolation_neighbors = n_interpolation_neighbors
         self.interpolator_class = partial(IDWInterpolator, neighbors=n_interpolation_neighbors)
         self.surface_elevation_interpolator = self.interpolator_class(coords, surface_elevations)
-        self.survey = survey
 
     def __len__(self):
         return len(self.coords)
@@ -35,10 +39,6 @@ class SpatialGrid:
     @property
     def coords_tree(self):
         return self.surface_elevation_interpolator.nearest_neighbors
-
-    @property
-    def has_survey(self):
-        return self.survey is not None
 
     @staticmethod
     def process_coords(coords):
@@ -186,12 +186,9 @@ class SpatialGrid:
 
     def create_dataset(self, survey=None, first_breaks_header=HDR_FIRST_BREAK, uphole_correction_method="auto",
                        slowness_grid_step=500):
-        if survey is None:
-            if not self.has_survey:
-                raise ValueError("A survey to create a dataset must be passed")
-            survey = self.survey
-        return LayeredModelTravelTimeDataset(survey, self, first_breaks_header, uphole_correction_method,
-                                             slowness_grid_step)
+        return super().create_dataset(survey=survey, first_breaks_header=first_breaks_header,
+                                      uphole_correction_method=uphole_correction_method,
+                                      slowness_grid_step=slowness_grid_step)
 
     # Grid visualization
 
