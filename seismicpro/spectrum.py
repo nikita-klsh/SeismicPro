@@ -13,7 +13,8 @@ class Spectrum:
         self.y_values = y_values
 
     def normalize(self):
-        spectrum_max = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5
+        spec_squares = np.power(self.spectrum, 2, dtype=np.float64)
+        spectrum_max = (np.nansum(spec_squares, axis=1, keepdims=True) ** 0.5).astype(np.float32)
         self.spectrum = np.where(spectrum_max != 0, self.spectrum / spectrum_max, 0)
         return self
 

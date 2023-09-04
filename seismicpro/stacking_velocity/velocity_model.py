@@ -189,13 +189,13 @@ def calculate_stacking_velocity(spectrum, init=None, bounds=None, relative_margi
 
         min_velocity_accelerations = np.concatenate([min_velocity_accelerations[:1], min_velocity_accelerations])
         max_velocity_accelerations = np.concatenate([max_velocity_accelerations[:1], max_velocity_accelerations])
+        # acceleration_bounds = np.stack([max_velocity_accelerations, max_velocity_accelerations], axis=1)
 
         mean_accelerations = np.abs((min_velocity_accelerations + max_velocity_accelerations) / 2)
-        # import pandas as pd
-        # mean_accelerations = pd.Series(mean_accelerations).ewm(alpha=0.1).mean().values
-        N = 10
-        w  = np.arange(1, N + 1) / np.arange(1, N + 1).sum()
-        mean_accelerations = np.convolve(mean_accelerations, w, mode='same')
+        # N = 10
+        # w  = np.arange(1, N + 1) / np.arange(1, N + 1).sum()
+        # w  = np.ones(N) / N
+        # mean_accelerations = np.convolve(mean_accelerations, w[::-1], mode='same')
         # acceleration_bounds = mean_accelerations[:, np.newaxis] * np.array([(1 - 0.99 * np.sign(mean_accelerations)), (1 + 0.99 * np.sign(mean_accelerations))]).T
         acceleration_bounds = mean_accelerations[:, np.newaxis] * np.array([-2, 2]).T
 

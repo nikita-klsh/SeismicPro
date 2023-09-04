@@ -253,5 +253,5 @@ class VFUNC:
         ax.plot(self.data_y, self.data_x, **kwargs)
         if self.bounds is not None and plot_bounds:
             ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
-        if invert:
+        if invert and not ax.yaxis_inverted():
             ax.invert_yaxis()

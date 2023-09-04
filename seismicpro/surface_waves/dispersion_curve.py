@@ -35,6 +35,10 @@ class DispersionCurve(VFUNC):
     @property
     def periods(self):
         return 1 / self.frequencies
+
+    @classmethod
+    def from_dispersion_curves(cls, velocities, weights=None, coords=None):
+        return cls.from_vfuncs(velocities, weights, coords)
         
     @classmethod
     def from_dispersion_spectrum(cls, spectrum, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
@@ -81,13 +85,19 @@ class DispersionCurve(VFUNC):
 
     @classmethod
     def from_elastic_model(cls, vs, vp=None, rho=None, f=None, dc=0.005):
-        f = f or vs.produced_by.frequencies
+        if f is not None:
+            f = f
+        elif f is None:
+            if vs.produced_by is not None:
+                f = vs.produced_by.frequencies
+        else:
+            raise ValueError('Provide frequencies range')
         v = cls.func(vs.velocities / 1000, 1 / f, vs.thickness / 1000, dc=dc)
         return DispersionCurve(f, v * 1000)
     
 
     @batch_method(target="for", copy_src=False)
-    def invert(self, fmin=None, fmax=None, dz=0.005, bounds=(0.1, 5), vpvs=2, kd=2, alpha=0.005):
+    def invert(self, fmin=None, fmax=None, dz=0.005, x0=None, bounds=None, vpvs=2, kd=2, alpha=0.005, dc=0.005, adaptive=False, tol=0.010, return_loss=False):
         target_dispersion_curve = self.copy()
         target_dispersion_curve.recalculate(fmin, fmax)
 
@@ -104,8 +114,14 @@ class DispersionCurve(VFUNC):
         initial_simplex = None
 
         loss = partial(self.loss, alpha=alpha, poison=vpvs)
-        scipy_res = minimize(loss, args=(target_dispersion_curve.velocities / 1000, target_dispersion_curve.periods, thickness), x0=vs, bounds=[bounds] * len(vs), 
-                             method='Nelder-Mead', tol=0.010, options=dict(maxfev=2000, initial_simplex=initial_simplex))
+        if x0 is None:
+            x0 = vs
+        if bounds is None:
+            bounds = [(0.1, 5)] * len(vs)
+        
+        loss = partial(self.loss, alpha=alpha, poison=vpvs, dc=dc)
+        scipy_res = minimize(loss, args=(target_dispersion_curve.velocities / 1000, target_dispersion_curve.periods, thickness), x0=x0, bounds=bounds, 
+                              method="Nelder-Mead", tol=tol, options=dict(maxfev=2000, initial_simplex=initial_simplex, adaptive=adaptive))
         law = VelocityLaw(elevations * 1000, scipy_res.x * 1000, coords=self.coords)
         law.produced_by = target_dispersion_curve
         return law

@@ -17,8 +17,9 @@ class DispersionSpectrum(Spectrum):
         if spectrum_type == 'fv':
             slant_stack = SlantStack.from_gather(gather, velocities)
             return  cls.from_slant_stack(slant_stack, fmax, complex_to_real, **kwargs)
+        else:
+            ft, frequencies = cls.calculate_ft(gather.data, gather.sample_interval / 1000, fmax)
 
-        ft, frequencies = cls.calculate_ft(gather.data, gather.sample_interval / 1000, fmax)
     
         WAVEFIELD_TRANSFORMS = {
             'phase_shift': cls.calculate_ps,
@@ -69,12 +70,16 @@ class DispersionSpectrum(Spectrum):
         spectrum_data = complex_to_real(spectrum_data).T
         spectrum =  cls(spectrum_data, slant_stack.x_values, frequencies)
         spectrum.gather = slant_stack.gather.copy()
+        spectrum.times_interval = slant_stack.gather.sample_rate / slant_stack.gather.n_samples
+        spectrum.delay = frequencies[0]
+        spectrum.coords = slant_stack.gather.coords
         return spectrum
 
     @batch_method(target="for", args_to_unpack="init", copy_src=False)
     def calculate_dispersion_curve(self, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
-                                      acceleration_bounds="adaptive", times_step=0.1, max_n_skips=2):
-        
+                                      acceleration_bounds="adaptive", times_step=None, max_n_skips=2):
+        if times_step is None:
+            times_step = self.times_interval
         return DispersionCurve.from_dispersion_spectrum(self, init=init, bounds=bounds, relative_margin=relative_margin, velocity_step=velocity_step,
                                       acceleration_bounds=acceleration_bounds, times_step=times_step, max_n_skips=max_n_skips)
 
@@ -83,6 +88,7 @@ class DispersionSpectrum(Spectrum):
     @njit(parallel=True)
     def calculate_ps(ft_gather_data, velocities, frequencies, offsets):
         spectrum_data = np.empty((len(velocities), len(frequencies)), dtype=np.complex64)
+        ft_gather_data = ft_gather_data / np.abs(ft_gather_data)
         for row in prange(len(velocities)):
             velocity = velocities[row]
             delta = offsets / velocity
