@@ -6,9 +6,12 @@ class StaticsPlot(PairedPlot):
                  **kwargs):
         by = by.lower()
         if by in {"source", "shot"}:
-            metric_maps_list = [statics.source_statics_map, statics.corrected_source_statics_map,
+            metric_maps_list = [statics.source_statics_map, statics.source_surface_statics_map,
                                 statics.source_elevation_map]
             titles_list = ["Map of source statics", "Map of uphole-corrected source statics", "Surface elevation map"]
+            if statics.source_surface_statics_map is not None:
+                metric_maps_list = [metric_maps_list[0], metric_maps_list[2]]
+                titles_list = [titles_list[0], titles_list[2]]
         elif by in {"receiver", "rec"}:
             metric_maps_list = [statics.receiver_statics_map, statics.receiver_elevation_map]
             titles_list = ["Map of receiver statics", "Surface elevation map"]

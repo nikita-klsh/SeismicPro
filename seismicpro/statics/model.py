@@ -82,7 +82,7 @@ class NearSurfaceModel:
         source_statics = source_statics_list[0] if is_single_survey else source_statics_list
         receiver_statics = receiver_statics_list[0] if is_single_survey else receiver_statics_list
         return Statics(survey, source_statics, receiver_statics, source_id_cols=source_id_cols,
-                       receiver_id_cols=receiver_id_cols, validate=False)
+                       receiver_id_cols=receiver_id_cols)
 
     # Model visualization
 
