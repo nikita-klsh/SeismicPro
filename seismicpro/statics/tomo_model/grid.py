@@ -26,9 +26,9 @@ class Grid3D(Grid):
         self.cell_size = cell_size
         self.shape = shape
 
-        self.z_cell_bounds = self.z_origin + self.z_cell_size * np.arange(self.n_z_cells + 1)
-        self.x_cell_bounds = self.x_origin + self.x_cell_size * np.arange(self.n_x_cells + 1)
-        self.y_cell_bounds = self.y_origin + self.y_cell_size * np.arange(self.n_y_cells + 1)
+        self.z_cell_bounds = self.z_origin + self.z_cell_size * np.arange(self.z_n_cells + 1)
+        self.x_cell_bounds = self.x_origin + self.x_cell_size * np.arange(self.x_n_cells + 1)
+        self.y_cell_bounds = self.y_origin + self.y_cell_size * np.arange(self.y_n_cells + 1)
 
         self.z_cell_centers = self.z_cell_size / 2 + self.z_cell_bounds[:-1]
         self.x_cell_centers = self.x_cell_size / 2 + self.x_cell_bounds[:-1]
@@ -64,20 +64,20 @@ class Grid3D(Grid):
         return self.cell_size[2]
 
     @property
-    def n_z_cells(self):
+    def z_n_cells(self):
         return self.shape[0]
 
     @property
-    def n_x_cells(self):
+    def x_n_cells(self):
         return self.shape[1]
 
     @property
-    def n_y_cells(self):
+    def y_n_cells(self):
         return self.shape[2]
 
     @property
     def n_cells(self):
-        return self.n_z_cells * self.n_x_cells * self.n_y_cells
+        return self.z_n_cells * self.x_n_cells * self.y_n_cells
 
     def _init_air_mask(self):
         headers = pl.concat([sur.get_polars_headers().lazy() for sur in to_list(self.survey)], rechunk=False)
@@ -102,7 +102,7 @@ class Grid3D(Grid):
         max_elevation_interp = IDWInterpolator(used_cell_coords, max_elevations[:, 2], neighbors=8)
 
         cell_coords = np.array(np.meshgrid(self.x_cell_centers, self.y_cell_centers)).T.reshape(-1, 2)
-        max_elevation_grid = max_elevation_interp(cell_coords).reshape(self.n_x_cells, self.n_y_cells)
+        max_elevation_grid = max_elevation_interp(cell_coords).reshape(self.x_n_cells, self.y_n_cells)
         self.air_mask = self.z_cell_bounds[:-1, None, None] >= max_elevation_grid
 
     # IO

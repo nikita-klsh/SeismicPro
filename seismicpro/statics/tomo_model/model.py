@@ -90,16 +90,16 @@ class TomoModel(NearSurfaceModel):
         return self.grid.y_cell_size
 
     @property
-    def n_z_cells(self):
-        return self.grid.n_z_cells
+    def z_n_cells(self):
+        return self.grid.z_n_cells
 
     @property
-    def n_x_cells(self):
-        return self.grid.n_x_cells
+    def x_n_cells(self):
+        return self.grid.x_n_cells
 
     @property
-    def n_y_cells(self):
-        return self.grid.n_y_cells
+    def y_n_cells(self):
+        return self.grid.y_n_cells
 
     @property
     def n_cells(self):
@@ -144,7 +144,7 @@ class TomoModel(NearSurfaceModel):
 
         spatial_velocities = cls.interp_velocities(elevations, velocities, grid.z_origin, grid.z_cell_size,
                                                    grid.z_n_cells)
-        spatial_velocities = spatial_velocities.reshape(grid.n_x_cells, grid.n_y_cells, grid.n_z_cells)
+        spatial_velocities = spatial_velocities.reshape(grid.x_n_cells, grid.y_n_cells, grid.z_n_cells)
         velocity_grid = np.require(spatial_velocities.transpose((2, 0, 1)), dtype=np.float64, requirements="C")
         return cls(grid, velocity_grid)
 
@@ -152,7 +152,7 @@ class TomoModel(NearSurfaceModel):
     def from_gradient_model(cls, grid, top_velocity, bottom_velocity):
         if (top_velocity <= 0) or (bottom_velocity <= 0):
             raise ValueError
-        velocities = np.linspace(bottom_velocity, top_velocity, grid.n_z_cells).reshape(-1, 1, 1)
+        velocities = np.linspace(bottom_velocity, top_velocity, grid.z_n_cells).reshape(-1, 1, 1)
         return cls(grid, velocities)
 
     # Traveltime estimation
@@ -298,8 +298,8 @@ class TomoModel(NearSurfaceModel):
     @torch.no_grad()
     def enforce_constraints(self):
         self.velocities_tensor.clip_(min=330)
-        if self.grid.has_survey:
-            self.velocities_tensor[self.grid.air_mask] = 330
+        if self.air_mask is not None:
+            self.velocities_tensor[self.air_mask] = 330
 
     def fit(self, dataset, batch_size=320, n_epochs=5, lr=0.1, vertical_reg_coef=1, spatial_reg_coef=5,
             spatial_margin=3, n_sweeps=2, max_step_size=None, max_n_steps=None, n_workers=None, bar=True):
@@ -403,7 +403,7 @@ class TomoModel(NearSurfaceModel):
     def calculate_source_statics(self, source_headers, source_id_cols, uphole_correction_method, datum, raytrace=True,
                                  spatial_margin=3, vertical_margin=1, n_sweeps=2, max_n_steps=None, n_workers=None,
                                  bar=True):
-        statics = source_headers[to_list(source_id_cols)]
+        statics = source_headers[to_list(source_id_cols)].copy()  # Avoid SettingWithCopyWarning
         source_surface_coords = source_headers[["SourceSurfaceElevation", "SourceX", "SourceY"]].to_numpy()
         statics["SurfaceStatics"] = self.calculate_coords_statics_direct(source_surface_coords, datum)
         raytracing_kwargs = {"spatial_margin": spatial_margin, "crop_vertically": True,
@@ -438,7 +438,7 @@ class TomoModel(NearSurfaceModel):
 
     def calculate_receiver_statics(self, receiver_headers, receiver_id_cols, datum, raytrace=True, spatial_margin=3,
                                    vertical_margin=1, n_sweeps=2, max_n_steps=None, n_workers=None, bar=True):
-        statics = receiver_headers[to_list(receiver_id_cols)]
+        statics = receiver_headers[to_list(receiver_id_cols)].copy()  # Avoid SettingWithCopyWarning
         receiver_coords = receiver_headers[["ReceiverGroupElevation", "GroupX", "GroupY"]].to_numpy()
         statics["Statics"] = self.calculate_coords_statics_direct(receiver_coords, datum)
         raytracing_kwargs = {"spatial_margin": spatial_margin, "crop_vertically": True,

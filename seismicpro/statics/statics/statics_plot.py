@@ -9,7 +9,7 @@ class StaticsPlot(PairedPlot):
             metric_maps_list = [statics.source_statics_map, statics.source_surface_statics_map,
                                 statics.source_elevation_map]
             titles_list = ["Map of source statics", "Map of uphole-corrected source statics", "Surface elevation map"]
-            if statics.source_surface_statics_map is not None:
+            if statics.source_surface_statics_map is None:
                 metric_maps_list = [metric_maps_list[0], metric_maps_list[2]]
                 titles_list = [titles_list[0], titles_list[2]]
         elif by in {"receiver", "rec"}:

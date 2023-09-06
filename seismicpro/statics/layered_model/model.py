@@ -583,13 +583,13 @@ class LayeredModel(NearSurfaceModel):
         return statics
 
     def calculate_source_statics(self, source_headers, source_id_cols, uphole_correction_method, **kwargs):
-        statics = source_headers[to_list(source_id_cols)]
+        statics = source_headers[to_list(source_id_cols)].copy()  # Avoid SettingWithCopyWarning
         source_coords = source_headers[["SourceX", "SourceY", "SourceSurfaceElevation"]].to_numpy()
         statics["SurfaceStatics"] = self.calculate_coords_statics(source_coords, **kwargs)
         if uphole_correction_method == "time":
-            statics["Statics"] = statics["SurfaceStatics"] - statics["SourceUpholeTime"]
+            statics["Statics"] = statics["SurfaceStatics"] - source_headers["SourceUpholeTime"]
         elif uphole_correction_method == "depth":
-            source_elevations = source_coords[:, -1] - statics["SourceDepth"].to_numpy()
+            source_elevations = source_coords[:, -1] - source_headers["SourceDepth"].to_numpy()
             source_coords = np.column_stack([source_coords[:, :2], source_elevations])
             statics["Statics"] = self.calculate_coords_statics(source_coords, **kwargs)
         else:
@@ -597,7 +597,7 @@ class LayeredModel(NearSurfaceModel):
         return statics
 
     def calculate_receiver_statics(self, receiver_headers, receiver_id_cols, **kwargs):
-        statics = receiver_headers[to_list(receiver_id_cols)]
+        statics = receiver_headers[to_list(receiver_id_cols)].copy()  # Avoid SettingWithCopyWarning
         receiver_coords = receiver_headers[["GroupX", "GroupY", "ReceiverGroupElevation"]].to_numpy()
         statics["Statics"] = self.calculate_coords_statics(receiver_coords, **kwargs)
         return statics
