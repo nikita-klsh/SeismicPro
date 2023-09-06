@@ -1,12 +1,10 @@
 import os
 import math
-import warnings
 import random
 from concurrent.futures import ThreadPoolExecutor
 
 import torch
 import numpy as np
-import polars as pl
 import matplotlib.pyplot as plt
 from numba import njit, prange
 from tqdm.auto import tqdm
@@ -25,6 +23,7 @@ class TomoModel(NearSurfaceModel):
         velocities = np.broadcast_to(velocities, grid.shape)
 
         self.velocities_tensor = torch.tensor(velocities, dtype=torch.float64, requires_grad=True)
+        self.air_mask = torch.tensor(grid.air_mask) if grid.has_survey else None
         self.enforce_constraints()
 
         self.loss_hist = []
