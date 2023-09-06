@@ -70,6 +70,13 @@ def raytrace(src, src_slowness, dst_list, tt_grid, z_grad, x_grad, y_grad, z, x,
         straight = False
 
         while True:
+            z_stop = z_stop_min <= cur[0] <= z_stop_max
+            x_stop = x_stop_min <= cur[1] <= x_stop_max
+            y_stop = y_stop_min <= cur[2] <= y_stop_max
+            if z_stop and x_stop and y_stop:
+                succeeded[i] = True
+                break
+
             if straight:
                 gz = src[0] - cur[0]
                 gx = src[1] - cur[1]
@@ -111,13 +118,6 @@ def raytrace(src, src_slowness, dst_list, tt_grid, z_grad, x_grad, y_grad, z, x,
             step_ix += 1
             ray[step_ix] = cur
             if step_ix == max_n_steps - 2:
-                break
-
-            z_stop = z_stop_min <= cur[0] <= z_stop_max
-            x_stop = x_stop_min <= cur[1] <= x_stop_max
-            y_stop = y_stop_min <= cur[2] <= y_stop_max
-            if z_stop and x_stop and y_stop:
-                succeeded[i] = True
                 break
 
         if succeeded[i]:
