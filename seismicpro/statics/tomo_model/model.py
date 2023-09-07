@@ -1,6 +1,7 @@
 import os
 import math
 import random
+from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
 import torch
@@ -9,6 +10,7 @@ import matplotlib.pyplot as plt
 from numba import njit, prange
 from tqdm.auto import tqdm
 from fteikpy import Eikonal3D
+from scipy.interpolate import RegularGridInterpolator
 
 from .raytracing import describe_rays
 from .profile_plot import ProfilePlot
@@ -154,6 +156,23 @@ class TomoModel(NearSurfaceModel):
             raise ValueError
         velocities = np.linspace(bottom_velocity, top_velocity, grid.z_n_cells).reshape(-1, 1, 1)
         return cls(grid, velocities)
+
+    # Interpolation-related methods
+
+    def change_grid(self, grid):
+        interp_cls = partial(RegularGridInterpolator, (self.z_cell_centers, self.x_cell_centers, self.y_cell_centers),
+                             self.velocities_tensor.detach().numpy())
+        interp = interp_cls(method="linear", bounds_error=False)
+
+        zz, xx, yy = np.meshgrid(grid.z_cell_centers, grid.x_cell_centers, grid.y_cell_centers, indexing="ij")
+        grid_coords = np.column_stack([zz.ravel(), xx.ravel(), yy.ravel()])
+        velocities = interp(grid_coords)
+        nan_mask = np.isnan(velocities)
+        if nan_mask.any():
+            nearest_interp = interp_cls(method="nearest", bounds_error=False, fill_value=None)
+            velocities[nan_mask] = nearest_interp(grid_coords[nan_mask])
+        velocities = velocities.reshape(grid.shape)
+        return type(self)(grid, velocities)
 
     # Traveltime estimation
 
