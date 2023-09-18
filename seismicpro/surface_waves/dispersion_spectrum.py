@@ -7,13 +7,14 @@ from ..spectrum import Spectrum
 from ..velocity_spectrum import SlantStack
 from ..decorators import plotter, batch_method
 from ..containers import SamplesContainer
+from .interactive_plot import DispersionSpectrumPlot
 
 
 class DispersionSpectrum(Spectrum):
     """ Implements various transforms of seisimc gather to f-v domain. """
 
     @classmethod
-    def from_gather(cls, gather, velocities, fmax=None, spectrum_type='fv', complex_to_real=np.abs, **kwargs):
+    def from_gather(cls, gather, velocities, fmax=None, spectrum_type='fv', complex_to_real=np.abs, start=None, end=None, **kwargs):
         if spectrum_type == 'fv':
             slant_stack = SlantStack.from_gather(gather, velocities)
             return  cls.from_slant_stack(slant_stack, fmax, complex_to_real, **kwargs)
@@ -27,13 +28,26 @@ class DispersionSpectrum(Spectrum):
         }
 
         spectrum_func = WAVEFIELD_TRANSFORMS.get(spectrum_type)
-        spectrum_data = spectrum_func(ft, velocities, frequencies, gather.offsets, **kwargs)
+        
+        if start is not None:
+            start_offsets = start(frequencies)
+        else:
+            start_offsets = np.full_like(frequencies, 0, dtype=np.float64)
+
+        if end is not None:
+            end_offsets = end(frequencies)
+        else:
+            end_offsets = np.full_like(frequencies, 1e6, dtype=np.float64)
+        
+        spectrum_data = spectrum_func(ft, velocities, frequencies, gather.offsets, start=start_offsets, end=end_offsets, **kwargs)
         spectrum_data = complex_to_real(spectrum_data)
         spectrum =  cls(spectrum_data, velocities, frequencies)
         spectrum.times_interval = gather.sample_rate / gather.n_samples
         spectrum.delay = frequencies[0]
         spectrum.gather = gather.copy()
         spectrum.coords = gather.coords
+        spectrum.start = start
+        spectrum.end = end
         return spectrum
 
     @property
@@ -48,8 +62,10 @@ class DispersionSpectrum(Spectrum):
     def frequencies(self):
         return self.y_values
 
-    def plot(self, dispersion_curve=None,plot_bounds=True, **kwargs):
-        return super().plot(title='Dispersion Spsectrum', vfunc=dispersion_curve, plot_bounds=plot_bounds, align_vfunc=False, **kwargs)
+    def plot(self, dispersion_curve=None, plot_bounds=True, interactive=False, **kwargs):
+        if not interactive:
+            return super().plot(title='Dispersion Spsectrum', vfunc=dispersion_curve, plot_bounds=plot_bounds, align_vfunc=False, **kwargs)
+        return DispersionSpectrumPlot(self, title='Dispersion Spsectrum', vfunc=dispersion_curve, plot_bounds=plot_bounds, half_win_size=1, **kwargs).plot()
 
     @staticmethod
     def calculate_ft(data, sample_interval, fmax=None):
