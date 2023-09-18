@@ -24,6 +24,9 @@ class DispersionField(StackingVelocityField):
     def mean_dispersion_curve(self):
         return self.item_class.from_dispersion_curves(self.items)
 
+    def dump(self, path, n_decimals=2, encoding="UTF-8"):
+        return super().dump(path, n_decimals=n_decimals, encoding=encoding)
+
 
 class VSField(StackingVelocityField):
     

@@ -76,33 +76,57 @@ class DispersionSpectrum(Spectrum):
         return spectrum
 
     @batch_method(target="for", args_to_unpack="init", copy_src=False)
-    def calculate_dispersion_curve(self, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
+    def calculate_dispersion_curve(self, fmin=None, fmax=None, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
                                       acceleration_bounds="adaptive", times_step=None, max_n_skips=2):
         if times_step is None:
             times_step = self.times_interval
-        return DispersionCurve.from_dispersion_spectrum(self, init=init, bounds=bounds, relative_margin=relative_margin, velocity_step=velocity_step,
-                                      acceleration_bounds=acceleration_bounds, times_step=times_step, max_n_skips=max_n_skips)
+
+        fmin = fmin or self.frequencies.min()
+        fmax = fmax or self.frequencies.max()
+        mask = (self.frequencies >= fmin) & (self.frequencies <= fmax)
+
+        spectrum =  type(self)(self.spectrum[mask], self.velocities, self.frequencies[mask])
+        spectrum.times_interval = self.times_interval
+        spectrum.delay = self.delay
+        spectrum.gather = self.gather.copy()
+        spectrum.coords = self.gather.coords
+        return DispersionCurve.from_dispersion_spectrum(spectrum, init=init, bounds=bounds, relative_margin=relative_margin, velocity_step=velocity_step,
+                                       acceleration_bounds=acceleration_bounds, times_step=times_step, max_n_skips=max_n_skips)
 
 
     @staticmethod
     @njit(parallel=True)
-    def calculate_ps(ft_gather_data, velocities, frequencies, offsets):
+    def calculate_ps(ft_gather_data, velocities, frequencies, offsets, start=None, end=None):
+        if start is None:
+            start =  np.full_like(frequencies, 0, dtype=np.float64)
+        if end is None:
+            end = np.full_like(frequencies, 1e5, dtype=np.float64)
+
+        masks = np.full(ft_gather_data.T.shape, True, dtype=np.bool_)
+        for col in range(len(frequencies)):
+            masks[col] = (offsets <= end[col]) & (offsets >= start[col])
+
         spectrum_data = np.empty((len(velocities), len(frequencies)), dtype=np.complex64)
         ft_gather_data = ft_gather_data / np.abs(ft_gather_data)
         for row in prange(len(velocities)):
             velocity = velocities[row]
             delta = offsets / velocity
             for col in range(len(frequencies)):
+                mask = masks[col]
                 frequency = frequencies[col]
-                shift = np.exp(1j * 2* np.pi * frequency * delta)
-                inner = shift * ft_gather_data[:, col]
-                spectrum_data[row, col] = np.sum(inner)
+                shift = np.exp(1j * 2* np.pi * frequency * delta[mask])
+                inner = shift * ft_gather_data[mask, col]
+                spectrum_data[row, col] = np.mean(inner)
         return spectrum_data.T
 
 
     @staticmethod
     @njit(parallel=True)
-    def calculate_fdbf(ft_gather_data, velocities, frequencies, offsets, cylindrical=True, weighted=True):
+    def calculate_fdbf(ft_gather_data, velocities, frequencies, offsets, cylindrical=True, weighted=True, start=None, end=None):
+        if start is None:
+            start =  np.full_like(frequencies, offsets.min(), dtype=np.float64)
+        if end is None:
+            end = np.full_like(frequencies, offsets.max(), dtype=np.float64)    
         spectrum_data = np.empty((len(frequencies), len(velocities)), dtype=np.complex64)
         if weighted:
             a, b = np.histogram(offsets, bins=100)
@@ -116,6 +140,7 @@ class DispersionSpectrum(Spectrum):
 
         k = 2 * np.pi * frequencies.reshape(-1, 1) / velocities.reshape(1, -1)
         for i in prange(len(frequencies)):
+            mask = (offsets <= end[i]) & (offsets >= start[i])
             for j in range(len(velocities)):
                 kx = k[i, j] * offsets
 
@@ -128,6 +153,6 @@ class DispersionSpectrum(Spectrum):
 
                 steer = w * steer
 
-                HS = np.conjugate(steer) @ ft_gather_data[:, i]
-                spectrum_data[i, j] = (HS * np.conjugate(HS).T).item()
+                HS = np.conjugate(steer)[:, mask] @ ft_gather_data[:, i][mask]
+                spectrum_data[i, j] = (HS * np.conjugate(HS).T).item() / len(mask)
         return spectrum_data

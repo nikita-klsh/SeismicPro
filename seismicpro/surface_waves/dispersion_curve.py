@@ -99,7 +99,7 @@ class DispersionCurve(VFUNC):
     @batch_method(target="for", copy_src=False)
     def invert(self, fmin=None, fmax=None, dz=0.005, x0=None, bounds=None, vpvs=2, kd=2, alpha=0.005, dc=0.005, adaptive=False, tol=0.010, return_loss=False):
         target_dispersion_curve = self.copy()
-        target_dispersion_curve.recalculate(fmin, fmax)
+        target_dispersion_curve.filter(fmin, fmax)
 
         vs_law = VelocityLaw.from_dispersion_curve(target_dispersion_curve, kd)
         elevations = np.arange(dz, vs_law.depths.max() / 1000 + dz, dz)
@@ -141,6 +141,10 @@ class DispersionCurve(VFUNC):
             return np.abs(velocity - cls.func(x, period, thickness, poison=poison, dc=dc)).mean() + alpha * np.abs(np.diff(x)).mean()
         except:
             return np.nan
+
+    
+    def dump(self, path, n_decimals=2, encoding="UTF-8"):
+        return super().dump(path, n_decimals=n_decimals, encoding=encoding)
 
         
 class VelocityLaw(VFUNC):
