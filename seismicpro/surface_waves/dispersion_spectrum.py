@@ -129,10 +129,13 @@ class DispersionSpectrum(Spectrum):
             delta = offsets / velocity
             for col in range(len(frequencies)):
                 mask = masks[col]
-                frequency = frequencies[col]
-                shift = np.exp(1j * 2* np.pi * frequency * delta[mask])
-                inner = shift * ft_gather_data[mask, col]
-                spectrum_data[row, col] = np.mean(inner)
+                if mask.sum() == 0:
+                    spectrum_data[row, col] = 0
+                else:
+                    frequency = frequencies[col]
+                    shift = np.exp(1j * 2* np.pi * frequency * delta[mask])
+                    inner = shift * ft_gather_data[mask, col]
+                    spectrum_data[row, col] = np.mean(inner)
         return spectrum_data.T
 
 

@@ -12,7 +12,8 @@ class DispersionSpectrumPlot(VelocitySpectrumPlot):
     def construct_aux_plot(self):
         """Construct a correctable gather plot."""
         toolbar_position = "right" if self.orientation == "horizontal" else "left"
-        plotter = InteractivePlot(plot_fn=[self.plot_gather, partial(self.plot_gather, corrected=True), self.plot_phases, partial(self.plot_phases, unwrap=True), self.cumsum, self.cumsum_abs],
+        plotter = InteractivePlot(plot_fn=[self.plot_gather, partial(self.plot_gather, corrected=True), 
+                                  self.plot_phases, partial(self.plot_phases, unwrap=True), self.cumsum, self.cumsum_abs, self.qc_dc],
                                   title=self.get_gather_title, figsize=self.figsize, toolbar_position=toolbar_position)
         plotter.view_button.disabled = True
         return plotter
@@ -78,12 +79,18 @@ class DispersionSpectrumPlot(VelocitySpectrumPlot):
         ax.scatter(gather.offsets, est, label='EST', s=15)
 
         metric = np.abs(np.mean(shifts))
+        if self.velocity_spectrum.start is not None and self.velocity_spectrum.end is not None:
+            start_offset = self.velocity_spectrum.start(f)
+            end_offset = self.velocity_spectrum.end(f) 
+            ax.axvline(start_offset), ax.axvline(end_offset)
+            mask = (self.gather.offsets >= start_offset) & (self.gather.offsets <= end_offset)
+            metric = np.abs(np.mean(shifts[mask]))
+
         ax.set_title(f'{metric:0.2f}')
 
         # shifts = np.angle(shifts) 
         # ax.scatter(gather.offsets, shifts, label='SHIFT', s=10, c='k')
-        if self.velocity_spectrum.start is not None and self.velocity_spectrum.end is not None:
-            ax.axvline(self.velocity_spectrum.start(f)), ax.axvline(self.velocity_spectrum.end(f))
+
         ax.legend()
 
     def cumsum(self, ax):
@@ -110,7 +117,7 @@ class DispersionSpectrumPlot(VelocitySpectrumPlot):
         if self.velocity_spectrum.start is not None and self.velocity_spectrum.end is not None:
             start, end = self.velocity_spectrum.start(f), self.velocity_spectrum.end(f)
             mask = (self.gather.offsets >= start) & (self.gather.offsets <= end)
-            s = np.where(mask, 15, 5)
+            s = np.where(mask, 20, 3)
         else:
             s = 10
 
@@ -143,3 +150,12 @@ class DispersionSpectrumPlot(VelocitySpectrumPlot):
         if self.velocity_spectrum.start is not None and self.velocity_spectrum.end is not None:
             ax.axvline(self.velocity_spectrum.start(f)), ax.axvline(self.velocity_spectrum.end(f))
         add_colorbar(ax, im, True)
+
+    def qc_dc(self, ax):
+        freq, v = self.click_time, self.click_vel
+        spec = self.velocity_spectrum
+        
+        i = np.argmin(abs(spec.frequencies - freq))
+        f = spec.frequencies[i]
+        ax.plot(spec.velocities, spec.spectrum[i])
+        ax.axvline(v, label='FIT', c='r')

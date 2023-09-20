@@ -84,7 +84,7 @@ class DispersionCurve(VFUNC):
 
 
     @classmethod
-    def from_elastic_model(cls, vs, vp=None, rho=None, f=None, dc=0.005):
+    def from_elastic_model(cls, vs, f=None, dc=0.005):
         if f is not None:
             f = f
         elif f is None:
@@ -92,15 +92,45 @@ class DispersionCurve(VFUNC):
                 f = vs.produced_by.frequencies
         else:
             raise ValueError('Provide frequencies range')
-        v = cls.func(vs.velocities / 1000, 1 / f, vs.thickness / 1000, dc=dc)
+        v = cls.func(vs.velocities / 1000, 1 / f, vs.thickness / 1000, dc=dc, poison=vs.vpvs)
         return DispersionCurve(f, v * 1000)
     
 
+    # @batch_method(target="for", copy_src=False)
+    # def invert(self, fmin=None, fmax=None, dz=0.005, x0=None, bounds=None, vpvs=2, kd=2, alpha=0.005, dc=0.005, adaptive=False, tol=0.010):
+    #     target_dispersion_curve = self.copy()
+    #     target_dispersion_curve.filter(fmin, fmax)
+
+    #     vs_law = VelocityLaw.from_dispersion_curve(target_dispersion_curve, kd)
+    #     elevations = np.arange(dz, vs_law.depths.max() / 1000 + dz, dz)
+    #     vs = vs_law(elevations * 1000) / 1000
+    #     vp = vs * vpvs
+    #     rho = vp * 0.32 + 0.77
+    #     thickness = np.array([dz] * len(elevations))
+
+    #     dv = 0.3
+    #     boarders = np.random.choice([-1, 1], (len(vs), len(vs)))
+    #     initial_simplex = np.concatenate([vs.reshape(1, -1), vs + dv * boarders], axis=0)
+    #     initial_simplex = None
+
+    #     loss = partial(self.loss, alpha=alpha, poison=vpvs)
+    #     if x0 is None:
+    #         x0 = vs
+    #     if bounds is None:
+    #         bounds = [(0.1, 5)] * len(vs)
+        
+    #     loss = partial(self.loss, alpha=alpha, poison=vpvs, dc=dc)
+    #     scipy_res = minimize(loss, args=(target_dispersion_curve.velocities / 1000, target_dispersion_curve.periods, thickness), x0=x0, bounds=bounds, 
+    #                           method="Nelder-Mead", tol=tol, options=dict(maxfev=2000, initial_simplex=initial_simplex, adaptive=adaptive))
+    #     law = VelocityLaw(elevations * 1000, scipy_res.x * 1000, coords=self.coords)
+    #     law.produced_by = target_dispersion_curve
+    #     return law
+
     @batch_method(target="for", copy_src=False)
-    def invert(self, fmin=None, fmax=None, dz=0.005, x0=None, bounds=None, vpvs=2, kd=2, alpha=0.005, dc=0.005, adaptive=False, tol=0.010, return_loss=False):
+    def invert(self, fmin=None, fmax=None, dz=0.005, x0=None, bounds=None, vpvs=2, kd=2, alpha=0.005, dc=0.005, adaptive=False, tol=0.010, fit_vpvs=False):
         target_dispersion_curve = self.copy()
         target_dispersion_curve.filter(fmin, fmax)
-
+        
         vs_law = VelocityLaw.from_dispersion_curve(target_dispersion_curve, kd)
         elevations = np.arange(dz, vs_law.depths.max() / 1000 + dz, dz)
         vs = vs_law(elevations * 1000) / 1000
@@ -113,34 +143,74 @@ class DispersionCurve(VFUNC):
         initial_simplex = np.concatenate([vs.reshape(1, -1), vs + dv * boarders], axis=0)
         initial_simplex = None
 
-        loss = partial(self.loss, alpha=alpha, poison=vpvs)
         if x0 is None:
             x0 = vs
-        if bounds is None:
-            bounds = [(0.1, 5)] * len(vs)
         
-        loss = partial(self.loss, alpha=alpha, poison=vpvs, dc=dc)
+        if bounds is None:
+            bounds = [(0.1, 5)] * len(vs) 
+            
+        if fit_vpvs:
+            vpvs = vpvs / 10
+            x0 = np.concatenate([vs, [vpvs]])
+            bounds = [(0.1, 5)] * len(vs) + [(0.1, 1)]
+
+        loss = partial(self.loss, alpha=alpha, poison=vpvs, dc=dc, fit_vpvs=fit_vpvs)
         scipy_res = minimize(loss, args=(target_dispersion_curve.velocities / 1000, target_dispersion_curve.periods, thickness), x0=x0, bounds=bounds, 
-                              method="Nelder-Mead", tol=tol, options=dict(maxfev=2000, initial_simplex=initial_simplex, adaptive=adaptive))
-        law = VelocityLaw(elevations * 1000, scipy_res.x * 1000, coords=self.coords)
+                            method="Nelder-Mead", options=dict(maxfev=2000, initial_simplex=initial_simplex, adaptive=adaptive), tol=tol)
+        
+        if fit_vpvs:
+            vs = scipy_res.x[:-1]
+            vpvs = scipy_res.x[-1] * 10
+        else:
+            vs = scipy_res.x
+            vpvs = vpvs
+        
+        law = VelocityLaw(elevations * 1000, vs * 1000, coords=self.coords)
+        law.vpvs = vpvs
         law.produced_by = target_dispersion_curve
         return law
 
 
+    # @staticmethod
+    # def func(x, period, thickness, poison=2, dc=0.005):
+    #     vs = x
+    #     vp = vs * poison
+    #     rho = vp * 0.32 + 0.77
+    #     return surf96(period, thickness, vp, vs, rho, mode=0, itype=0, ifunc=3, dc=dc)
+
+
     @staticmethod
-    def func(x, period, thickness, poison=2, dc=0.005):
-        vs = x
-        vp = vs * poison
+    def func(x, period, thickness, poison=2, dc=0.005, fit_vpvs=False):
+        if not fit_vpvs:
+            vs = x
+            vp = vs * poison
+        else:
+            vs = x[:-1]
+            vp = vs * x[-1] * 10
+        
         rho = vp * 0.32 + 0.77
         return surf96(period, thickness, vp, vs, rho, mode=0, itype=0, ifunc=3, dc=dc)
 
 
+    # @classmethod
+    # def loss(cls, x, velocity, period, thickness, poison=2, dc=0.005, alpha=0.005):        
+    #     try:
+    #         return np.abs(velocity - cls.func(x, period, thickness, poison=poison, dc=dc)).mean() + alpha * np.abs(np.diff(x)).mean()
+    #     except:
+    #         return np.nan
+
     @classmethod
-    def loss(cls, x, velocity, period, thickness, poison=2, dc=0.005, alpha=0.005):
+    def loss(cls, x, velocity, period, thickness, dc=0.005, alpha=0.005, fit_vpvs=False, poison=2):        
+        if fit_vpvs:
+            reg = np.abs(np.diff(x[:-1])).mean()
+        else:
+            reg = np.abs(np.diff(x)).mean()
+
         try:
-            return np.abs(velocity - cls.func(x, period, thickness, poison=poison, dc=dc)).mean() + alpha * np.abs(np.diff(x)).mean()
+            return np.abs(velocity - cls.func(x, period, thickness, dc=dc, poison=poison, fit_vpvs=fit_vpvs)).mean() + alpha * reg
         except:
             return np.nan
+
 
     
     def dump(self, path, n_decimals=2, encoding="UTF-8"):
@@ -151,6 +221,7 @@ class VelocityLaw(VFUNC):
 
     def __init__(self, depths, velocities, coords=None):
         super().__init__(depths, velocities, coords)
+        self.vpvs = None
 
     @property
     def depths(self):
