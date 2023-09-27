@@ -138,7 +138,7 @@ class DispersionCurve(VFUNC):
         rho = vp * 0.32 + 0.77
         thickness = np.array([dz] * len(elevations))
 
-        dv = 0.3
+        dv = 1
         boarders = np.random.choice([-1, 1], (len(vs), len(vs)))
         initial_simplex = np.concatenate([vs.reshape(1, -1), vs + dv * boarders], axis=0)
         initial_simplex = None
@@ -150,9 +150,12 @@ class DispersionCurve(VFUNC):
             bounds = [(0.1, 5)] * len(vs) 
             
         if fit_vpvs:
-            vpvs = vpvs / 10
-            x0 = np.concatenate([vs, [vpvs]])
-            bounds = [(0.1, 5)] * len(vs) + [(0.1, 1)]
+            x0 = np.concatenate([vs, [0]])
+            bounds = [(0.1, 5)] * len(vs) + [(-1, 1)]
+
+            boarders = np.random.choice([-1, 1], (len(vs) + 1, len(vs) + 1))
+            some_vs = np.concatenate([vs, [0]])
+            initial_simplex = np.concatenate([some_vs.reshape(1, -1), some_vs + dv * boarders], axis=0)
 
         loss = partial(self.loss, alpha=alpha, poison=vpvs, dc=dc, fit_vpvs=fit_vpvs)
         scipy_res = minimize(loss, args=(target_dispersion_curve.velocities / 1000, target_dispersion_curve.periods, thickness), x0=x0, bounds=bounds, 
@@ -160,7 +163,7 @@ class DispersionCurve(VFUNC):
         
         if fit_vpvs:
             vs = scipy_res.x[:-1]
-            vpvs = scipy_res.x[-1] * 10
+            vpvs = scipy_res.x[-1] + vpvs
         else:
             vs = scipy_res.x
             vpvs = vpvs
@@ -186,7 +189,7 @@ class DispersionCurve(VFUNC):
             vp = vs * poison
         else:
             vs = x[:-1]
-            vp = vs * x[-1] * 10
+            vp = vs * (x[-1] + poison)
         
         rho = vp * 0.32 + 0.77
         return surf96(period, thickness, vp, vs, rho, mode=0, itype=0, ifunc=3, dc=dc)

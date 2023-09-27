@@ -15,11 +15,12 @@ class DispersionSpectrum(Spectrum):
 
     @classmethod
     def from_gather(cls, gather, velocities, fmax=None, spectrum_type='fv', complex_to_real=np.abs, start=None, end=None, **kwargs):
+        n_df = kwargs.pop('n_df', 1)
         if spectrum_type == 'fv':
             slant_stack = SlantStack.from_gather(gather, velocities)
             return  cls.from_slant_stack(slant_stack, fmax, complex_to_real, **kwargs)
         else:
-            ft, frequencies = cls.calculate_ft(gather.data, gather.sample_interval / 1000, fmax)
+            ft, frequencies = cls.calculate_ft(gather.data, gather.sample_interval / 1000, fmax, n_df=n_df)
 
     
         WAVEFIELD_TRANSFORMS = {
@@ -42,7 +43,8 @@ class DispersionSpectrum(Spectrum):
         spectrum_data = spectrum_func(ft, velocities, frequencies, gather.offsets, start=start_offsets, end=end_offsets, **kwargs)
         spectrum_data = complex_to_real(spectrum_data)
         spectrum =  cls(spectrum_data, velocities, frequencies)
-        spectrum.times_interval = gather.sample_rate / gather.n_samples
+        spectrum.times_interval =  gather.sample_rate / gather.n_samples / n_df
+        spectrum.n_df = n_df
         spectrum.delay = frequencies[0]
         spectrum.gather = gather.copy()
         spectrum.coords = gather.coords
@@ -68,12 +70,12 @@ class DispersionSpectrum(Spectrum):
         return DispersionSpectrumPlot(self, title='Dispersion Spsectrum', vfunc=dispersion_curve, plot_bounds=plot_bounds, half_win_size=1, **kwargs).plot()
 
     @staticmethod
-    def calculate_ft(data, sample_interval, fmax=None):
+    def calculate_ft(data, sample_interval, fmax=None, n_df=1):
         """Perform 1d Fourier transform of given 2d array of signals along the 1 axis.
         Transform is done for frequencies not greater than fmax.
         Returns 2d array of transform and array of corresponding frequencies. """
-        ft_data = np.fft.fft(data, axis=1)
-        frequencies = np.fft.fftfreq(data.shape[1], sample_interval)
+        ft_data = np.fft.fft(data.shape[1] * n_df, axis=1)
+        frequencies = np.fft.fftfreq(data.shape[1] * n_df, sample_interval)
 
         max_frequency = fmax or frequencies.max()
         frequencies_mask = (frequencies > 0) & (frequencies <= max_frequency)
@@ -94,6 +96,11 @@ class DispersionSpectrum(Spectrum):
     @batch_method(target="for", args_to_unpack="init", copy_src=False)
     def calculate_dispersion_curve(self, fmin=None, fmax=None, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
                                       acceleration_bounds="adaptive", times_step=None, max_n_skips=2):
+
+        from .fields import DispersionField
+        if isinstance(init, DispersionField):
+            init = init(self.coords)
+
         if times_step is None:
             times_step = self.times_interval
 

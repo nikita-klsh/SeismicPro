@@ -22,7 +22,7 @@ class DispersionSpectrumPlot(VelocitySpectrumPlot):
         """Get title of the gather plot."""
         if (self.click_time is None) or (self.click_vel is None):
             return "Gather"
-        fft, f = self.velocity_spectrum.calculate_ft(self.gather.data, self.gather.sample_interval/1000, self.velocity_spectrum.frequencies[-1])
+        fft, f = self.velocity_spectrum.calculate_ft(self.gather.data, self.gather.sample_interval/1000, self.velocity_spectrum.frequencies[-1], n_df=self.velocity_spectrum.n_df)
         i = np.argmin(abs(f - self.click_time))
         self.click_time = f[i]
         return f"Hodographs with freq {self.click_time:.2f} HZ with {self.click_vel:.2f} km/s velocity"
@@ -45,7 +45,7 @@ class DispersionSpectrumPlot(VelocitySpectrumPlot):
         #     hodograph_high = np.clip(hodograph_y + half_window, 0, len(self.gather.times) - 1)
         #     ax.fill_between(np.arange(len(hodograph)), hodograph_low, hodograph_high, color="tab:blue", alpha=0.3)
 
-        gather.bandpass_filter(low=self.click_time - 1, high=self.click_time + 1, filter_size=81 * 2)
+        gather.bandpass_filter(low=self.click_time - 0.1, high=self.click_time + 0.1, filter_size=81 * 3)
         gather.apply_lmo(refractor_velocity=self.click_vel, delay=0, fill_value=np.nan)
         gather.plot(ax=ax, **self.gather_plot_kwargs) # gather_plot_kwargs # q_vmin=0.01, q_vmax=0.99
 
@@ -81,7 +81,7 @@ class DispersionSpectrumPlot(VelocitySpectrumPlot):
         metric = np.abs(np.mean(shifts))
         if self.velocity_spectrum.start is not None and self.velocity_spectrum.end is not None:
             start_offset = self.velocity_spectrum.start(f)
-            end_offset = self.velocity_spectrum.end(f) 
+            end_offset = min(self.velocity_spectrum.end(f), gather.offsets.max())
             ax.axvline(start_offset), ax.axvline(end_offset)
             mask = (self.gather.offsets >= start_offset) & (self.gather.offsets <= end_offset)
             metric = np.abs(np.mean(shifts[mask]))
@@ -148,7 +148,7 @@ class DispersionSpectrumPlot(VelocitySpectrumPlot):
         shifts = phases * np.exp(exp) 
         im = ax.scatter(self.gather.offsets, np.abs(np.cumsum(shifts)), s=10, c=self.gather.offsets, cmap=cmap)
         if self.velocity_spectrum.start is not None and self.velocity_spectrum.end is not None:
-            ax.axvline(self.velocity_spectrum.start(f)), ax.axvline(self.velocity_spectrum.end(f))
+            ax.axvline(self.velocity_spectrum.start(f)), ax.axvline(min(self.velocity_spectrum.end(f), gather.offsets.max()))
         add_colorbar(ax, im, True)
 
     def qc_dc(self, ax):
