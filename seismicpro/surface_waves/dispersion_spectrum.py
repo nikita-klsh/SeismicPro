@@ -74,7 +74,7 @@ class DispersionSpectrum(Spectrum):
         """Perform 1d Fourier transform of given 2d array of signals along the 1 axis.
         Transform is done for frequencies not greater than fmax.
         Returns 2d array of transform and array of corresponding frequencies. """
-        ft_data = np.fft.fft(data.shape[1] * n_df, axis=1)
+        ft_data = np.fft.fft(data, data.shape[1] * n_df, axis=1)
         frequencies = np.fft.fftfreq(data.shape[1] * n_df, sample_interval)
 
         max_frequency = fmax or frequencies.max()
