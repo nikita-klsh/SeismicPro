@@ -75,7 +75,7 @@ def create_edges(spectrum_data, layer_times, layer_times_ix, layer_velocities, l
 
 # pylint: disable-next=too-many-statements
 def calculate_stacking_velocity(spectrum, init=None, bounds=None, relative_margin=0.2, acceleration_bounds="auto", velocity_step=None,
-                                times_step=100, max_offset=5000, hodograph_correction_step=25, max_n_skips=2):
+                                times_step=100, max_offset=5000, hodograph_correction_step=25, max_n_skips=2, acc_mult=3):
     """Calculate stacking velocity by vertical velocity spectrum.
 
     Stacking velocity is the value of the seismic velocity obtained from the best fit of the traveltime curve by a
@@ -197,7 +197,7 @@ def calculate_stacking_velocity(spectrum, init=None, bounds=None, relative_margi
         # w  = np.ones(N) / N
         # mean_accelerations = np.convolve(mean_accelerations, w[::-1], mode='same')
         # acceleration_bounds = mean_accelerations[:, np.newaxis] * np.array([(1 - 0.99 * np.sign(mean_accelerations)), (1 + 0.99 * np.sign(mean_accelerations))]).T
-        acceleration_bounds = mean_accelerations[:, np.newaxis] * np.array([-2, 2]).T
+        acceleration_bounds = mean_accelerations[:, np.newaxis] * np.array([-acc_mult, acc_mult]).T
 
     
     # if len(acceleration_bounds) != 2:

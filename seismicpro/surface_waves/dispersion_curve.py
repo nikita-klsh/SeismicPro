@@ -42,7 +42,7 @@ class DispersionCurve(VFUNC):
         
     @classmethod
     def from_dispersion_spectrum(cls, spectrum, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
-                                      acceleration_bounds="adaptive", times_step=100, max_n_skips=2):
+                                      acceleration_bounds="adaptive", times_step=100, max_n_skips=2, acc_mult=3):
         from .dispersion_spectrum import DispersionSpectrum  # pylint: disable=import-outside-toplevel
         if not isinstance(spectrum, DispersionSpectrum):
             raise ValueError("spectrum must be an instance of DispersionSPectrum")
@@ -57,7 +57,7 @@ class DispersionCurve(VFUNC):
 
         kwargs = {"init": init, "bounds": bounds, "relative_margin": relative_margin,
                   "acceleration_bounds": acceleration_bounds, "max_n_skips": max_n_skips,
-                  "times_step": times_step, "velocity_step": velocity_step}
+                  "times_step": times_step, "velocity_step": velocity_step, 'acc_mult': acc_mult}
                   
         stacking_velocity_params = calculate_stacking_velocity(spectrum, **kwargs)
         times, velocities, bounds_times, min_velocity_bound, max_velocity_bound = stacking_velocity_params
@@ -65,6 +65,7 @@ class DispersionCurve(VFUNC):
         dispersion_curve = cls(times, velocities, coords=coords)
         dispersion_curve.bounds = [cls(bounds_times, min_velocity_bound, coords=coords),
                                     cls(bounds_times, max_velocity_bound, coords=coords)]
+        dispersion_curve.init = init
         return dispersion_curve
 
     def __call__(self, frequencies):

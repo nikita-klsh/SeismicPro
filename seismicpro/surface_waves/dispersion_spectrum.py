@@ -29,6 +29,12 @@ class DispersionSpectrum(Spectrum):
         }
 
         spectrum_func = WAVEFIELD_TRANSFORMS.get(spectrum_type)
+
+        from ..field import Field
+        if isinstance(start, Field):
+            start = start(gather.coords)
+        if isinstance(end, Field):
+            end = end(gather.coords)
         
         if start is not None:
             start_offsets = start(frequencies)
@@ -95,7 +101,7 @@ class DispersionSpectrum(Spectrum):
 
     @batch_method(target="for", args_to_unpack="init", copy_src=False)
     def calculate_dispersion_curve(self, fmin=None, fmax=None, init=None, bounds=None, relative_margin=0.2, velocity_step=10,
-                                      acceleration_bounds="adaptive", times_step=None, max_n_skips=2):
+                                      acceleration_bounds="adaptive", times_step=None, max_n_skips=2, acc_mult=3):
 
         from .fields import DispersionField
         if isinstance(init, DispersionField):
@@ -114,12 +120,12 @@ class DispersionSpectrum(Spectrum):
         spectrum.gather = self.gather.copy()
         spectrum.coords = self.gather.coords
         return DispersionCurve.from_dispersion_spectrum(spectrum, init=init, bounds=bounds, relative_margin=relative_margin, velocity_step=velocity_step,
-                                       acceleration_bounds=acceleration_bounds, times_step=times_step, max_n_skips=max_n_skips)
+                                       acceleration_bounds=acceleration_bounds, times_step=times_step, max_n_skips=max_n_skips, , acc_mult=acc_mult)
 
 
     @staticmethod
     @njit(parallel=True)
-    def calculate_ps(ft_gather_data, velocities, frequencies, offsets, start=None, end=None):
+    def calculate_ps(ft_gather_data, velocities, frequencies, offsets, start=None, end=None, weighted=False):
         if start is None:
             start =  np.full_like(frequencies, 0, dtype=np.float64)
         if end is None:
@@ -129,8 +135,18 @@ class DispersionSpectrum(Spectrum):
         for col in range(len(frequencies)):
             masks[col] = (offsets <= end[col]) & (offsets >= start[col])
 
+        if weighted:
+            a, b = np.histogram(offsets, bins=100)
+            ix = np.searchsorted(b, offsets)
+            ix[ix == 0] = 1
+            ix = ix  - 1
+            a[a == 0] = 1
+            w = (1 / a[ix]).astype(np.float32)
+        else:
+            w = np.full_like(offsets, 1, np.float32)
+
         spectrum_data = np.empty((len(velocities), len(frequencies)), dtype=np.complex64)
-        ft_gather_data = ft_gather_data / np.abs(ft_gather_data)
+        ft_gather_data = np.where(np.abs(ft_gather_data), ft_gather_data / np.abs(ft_gather_data), 0)
         for row in prange(len(velocities)):
             velocity = velocities[row]
             delta = offsets / velocity
@@ -141,14 +157,14 @@ class DispersionSpectrum(Spectrum):
                 else:
                     frequency = frequencies[col]
                     shift = np.exp(1j * 2* np.pi * frequency * delta[mask])
-                    inner = shift * ft_gather_data[mask, col]
+                    inner = shift * ft_gather_data[mask, col] * w[mask]
                     spectrum_data[row, col] = np.mean(inner)
         return spectrum_data.T
 
 
     @staticmethod
     @njit(parallel=True)
-    def calculate_fdbf(ft_gather_data, velocities, frequencies, offsets, cylindrical=True, weighted=True, start=None, end=None):
+    def calculate_fdbf(ft_gather_data, velocities, frequencies, offsets, cylindrical=True, weighted=False, start=None, end=None):
         if start is None:
             start =  np.full_like(frequencies, offsets.min(), dtype=np.float64)
         if end is None:
