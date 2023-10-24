@@ -120,7 +120,7 @@ class DispersionSpectrum(Spectrum):
         spectrum.gather = self.gather.copy()
         spectrum.coords = self.gather.coords
         return DispersionCurve.from_dispersion_spectrum(spectrum, init=init, bounds=bounds, relative_margin=relative_margin, velocity_step=velocity_step,
-                                       acceleration_bounds=acceleration_bounds, times_step=times_step, max_n_skips=max_n_skips, , acc_mult=acc_mult)
+                                       acceleration_bounds=acceleration_bounds, times_step=times_step, max_n_skips=max_n_skips, acc_mult=acc_mult)
 
 
     @staticmethod

@@ -215,7 +215,6 @@ class DispersionCurve(VFUNC):
         except:
             return np.nan
 
-
     
     def dump(self, path, n_decimals=2, encoding="UTF-8"):
         return super().dump(path, n_decimals=n_decimals, encoding=encoding)

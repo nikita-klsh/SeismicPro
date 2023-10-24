@@ -955,6 +955,7 @@ class Gather(TraceContainer, SamplesContainer):
             self[to_list(event_headers)] += trace_delays.reshape(-1, 1)
         return self
 
+
     @batch_method(target="threads", args_to_unpack="stacking_velocity")
     def apply_nmo(self, stacking_velocity, max_stretch_factor=np.inf, interpolate=True, fill_value=np.nan):
         """Perform gather normal moveout correction using the given stacking velocity.
