@@ -16,6 +16,8 @@ class DispersionCurve(VFUNC):
     def __init__(self, frequencies, velocities, coords=None):
         super().__init__(frequencies, velocities, coords)
         self.bounds = None
+        # self.interpolator = interp1d(self.data_x, self.data_y)
+        self.interpolator = lambda x: np.interp(x, self.data_x, self.data_y)
 
     @property
     def frequencies(self):
@@ -225,6 +227,8 @@ class VelocityLaw(VFUNC):
     def __init__(self, depths, velocities, coords=None):
         super().__init__(depths, velocities, coords)
         self.vpvs = None
+        self.interpolator = lambda x: np.interp(x, self.data_x, self.data_y)
+
 
     @property
     def depths(self):

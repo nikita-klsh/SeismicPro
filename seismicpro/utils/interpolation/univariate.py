@@ -11,9 +11,9 @@ def interpolate(x_new, x, y, left_slope, right_slope):
     res = np.interp(x_new, x, y)
     for i, curr_x in enumerate(x_new):
         if curr_x < x[0]:
-            res[i] = y[0]# - left_slope * (x[0] - curr_x)
+            res[i] = y[0] - left_slope * (x[0] - curr_x)
         elif curr_x > x[-1]:
-            res[i] = y[-1]# + right_slope * (curr_x - x[-1])
+            res[i] = y[-1] + right_slope * (curr_x - x[-1])
     return res
 
 
