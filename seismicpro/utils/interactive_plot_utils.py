@@ -74,6 +74,8 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         on `redraw`) allowing for dynamic title generation. If not given, an empty title is created.
     preserve_clicks_on_view_change : bool, optional, defaults to False
         Whether to preserve click/slice markers and trigger the corresponding event on view change.
+    preserve_zoom : bool, optional, defaults to False
+        Whether to preserve zoom on view change.
     toolbar_position : {"top", "bottom", "left", "right"}, optional, defaults to "left"
         Toolbar position relative to the main axes.
     figsize : tuple with 2 elements, optional, defaults to (4.5, 4.5)
@@ -93,7 +95,8 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         An index of the current plot view.
     """
     def __init__(self, *, plot_fn=None, click_fn=None, slice_fn=None, unclick_fn=None, marker_params=None, title="",
-                 preserve_clicks_on_view_change=False, toolbar_position="left", figsize=(4.5, 4.5)):
+                 preserve_clicks_on_view_change=False, preserve_zoom=False, toolbar_position="left",
+                 figsize=(4.5, 4.5)):
         if "ipympl" not in plt.get_backend():
             raise RuntimeError("Plotting must be performed in a JupyterLab environment "
                                "with the `%matplotlib widget` magic executed")
@@ -112,6 +115,9 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.n_views = len(self.plot_fn_list)
         self.current_view = 0
         self.preserve_clicks_on_view_change = preserve_clicks_on_view_change
+        self.preserve_zoom = preserve_zoom
+        self.xlim = None
+        self.ylim = None
 
         # Click-related attributes
         self.start_click_time = None
@@ -145,7 +151,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.view_button.on_click(self.on_view_toggle)
         self.home_button = widgets.Button(icon="home", tooltip="Reset original view", description=" ",
                                           layout=widgets.Layout(**BUTTON_LAYOUT))
-        self.home_button.on_click(self.fig.canvas.toolbar.home)
+        self.home_button.on_click(self.on_home_toggle)
         self.pan_button = widgets.ToggleButton(icon="arrows", tooltip="Move the plot",
                                                layout=widgets.Layout(**BUTTON_LAYOUT))
         self.pan_button.observe(self.on_pan_toggle, "value")
@@ -279,6 +285,10 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
                 self.slice(self.start_click_coords, (event.xdata, event.ydata))
             elif self.slice_coords is not None:  # Restore previous valid slice
                 self.slice(*self.slice_coords)
+        elif self.preserve_zoom and self.zoom_button.value:
+            # Save params to preserve zoom on view change
+            self.xlim = self.ax.get_xlim()
+            self.ylim = self.ax.get_ylim()
         self.start_click_time = None
         self.start_click_coords = None
 
@@ -291,6 +301,14 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         """Switch the plot to the next view."""
         _ = event
         self.set_view((self.current_view + 1) % self.n_views)
+
+    def on_home_toggle(self, event):
+        """Toggle home button."""
+        _ = event
+        self.xlim = None
+        self.ylim = None
+        self.fig.canvas.toolbar.home()
+        self.redraw() # Restore default plot scale
 
     def on_pan_toggle(self, event):
         """Toggle pan button."""
@@ -403,6 +421,9 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.set_title()
         if self.plot_fn is not None:
             self.plot_fn(ax=self.ax)  # pylint: disable=not-callable
+            if self.preserve_zoom and self.xlim is not None and self.ylim is not None:
+                self.ax.set_xlim(self.xlim)
+                self.ax.set_ylim(self.ylim)
         if self.click_coords is not None:
             self.click(self.click_coords)
         if self.slice_coords is not None:
