@@ -11,14 +11,17 @@ from ..decorators import batch_method
 from ..stacking_velocity.velocity_model import calculate_stacking_velocity
 
 
+
 class DispersionCurve(VFUNC):
 
     def __init__(self, frequencies, velocities, coords=None):
         super().__init__(frequencies, velocities, coords)
         self.bounds = None
         # self.interpolator = interp1d(self.data_x, self.data_y)
-        self.interpolator = lambda x: np.interp(x, self.data_x, self.data_y)
 
+    def interpolator(self, x):
+        return np.interp(x, self.data_x, self.data_y)
+    
     @property
     def frequencies(self):
         """1d np.ndarray: An array with frequency values for which dispersion curve was estimated. Measured in HZ."""
@@ -227,7 +230,10 @@ class VelocityLaw(VFUNC):
     def __init__(self, depths, velocities, coords=None):
         super().__init__(depths, velocities, coords)
         self.vpvs = None
-        self.interpolator = lambda x: np.interp(x, self.data_x, self.data_y)
+        # self.interpolator = lambda x: np.interp(x, self.data_x, self.data_y)
+
+    def interpolator(self, x):
+        return np.interp(x, self.data_x, self.data_y)
 
 
     @property
