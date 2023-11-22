@@ -75,7 +75,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
     preserve_clicks_on_view_change : bool, optional, defaults to False
         Whether to preserve click/slice markers and trigger the corresponding event on view change.
     preserve_zoom : bool, optional, defaults to False
-        Whether to preserve zoom on view change.
+        Whether to preserve zoom on view redraw.
     toolbar_position : {"top", "bottom", "left", "right"}, optional, defaults to "left"
         Toolbar position relative to the main axes.
     figsize : tuple with 2 elements, optional, defaults to (4.5, 4.5)
@@ -116,8 +116,8 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.current_view = 0
         self.preserve_clicks_on_view_change = preserve_clicks_on_view_change
         self.preserve_zoom = preserve_zoom
-        self.xlim = None
-        self.ylim = None
+        self.current_view_pos = None
+        self.zoom_view_pos = None
 
         # Click-related attributes
         self.start_click_time = None
@@ -286,11 +286,14 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
             elif self.slice_coords is not None:  # Restore previous valid slice
                 self.slice(*self.slice_coords)
         elif self.preserve_zoom and self.zoom_button.value:
-            # Save params to preserve zoom on view change
-            self.xlim = self.ax.get_xlim()
-            self.ylim = self.ax.get_ylim()
+            # Preserve same zoom between clicks if needed
+            self.zoom_view_pos = self._get_view_pos()
         self.start_click_time = None
         self.start_click_coords = None
+
+    def _get_view_pos(self):
+        """Get the current view limits and position."""
+        return [self.ax._get_view(), self.ax.get_position(True).frozen(), self.ax.get_position().frozen()]
 
     def on_press(self, event):
         """Undo mouse click or slice on ESC key press if allowed."""
@@ -305,10 +308,16 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
     def on_home_toggle(self, event):
         """Toggle home button."""
         _ = event
-        self.xlim = None
-        self.ylim = None
+        self.zoom_view_pos = None
         self.fig.canvas.toolbar.home()
-        self.redraw() # Restore default plot scale
+        self._set_view_pos(self.current_view_pos)
+
+    def _set_view_pos(self, view_pos):
+        """Set the view limits and position."""
+        view, pos_orig, pos_active = view_pos
+        self.ax._set_view(view)
+        self.ax._set_position(pos_orig, 'original')
+        self.ax._set_position(pos_active, 'active')
 
     def on_pan_toggle(self, event):
         """Toggle pan button."""
@@ -421,9 +430,11 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.set_title()
         if self.plot_fn is not None:
             self.plot_fn(ax=self.ax)  # pylint: disable=not-callable
-            if self.preserve_zoom and self.xlim is not None and self.ylim is not None:
-                self.ax.set_xlim(self.xlim)
-                self.ax.set_ylim(self.ylim)
+            # Save the current view and position to be able to restore an original image if needed
+            self.current_view_pos = self._get_view_pos()
+            if self.preserve_zoom and self.zoom_view_pos is not None:
+                # Apply zoom to redrawn view
+                self._set_view_pos(self.zoom_view_pos)
         if self.click_coords is not None:
             self.click(self.click_coords)
         if self.slice_coords is not None:
