@@ -74,8 +74,12 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         on `redraw`) allowing for dynamic title generation. If not given, an empty title is created.
     preserve_clicks_on_view_change : bool, optional, defaults to False
         Whether to preserve click/slice markers and trigger the corresponding event on view change.
-    preserve_zoom : bool, optional, defaults to False
-        Whether to preserve zoom on view redraw.
+    preserve_lims : bool, optional, defaults to False
+        Whether to preserve limits changes on views redraw. If redraw is performed without `self.plot_fn`, limits
+        won't be preserved.
+    preserve_lims_on_view_change : bool, optional, defaults to False
+        Whether to preserve limits changes on view change. If view change is performed without `self.plot_fn`, limits
+        won't be preserved.
     toolbar_position : {"top", "bottom", "left", "right"}, optional, defaults to "left"
         Toolbar position relative to the main axes.
     figsize : tuple with 2 elements, optional, defaults to (4.5, 4.5)
@@ -95,8 +99,8 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         An index of the current plot view.
     """
     def __init__(self, *, plot_fn=None, click_fn=None, slice_fn=None, unclick_fn=None, marker_params=None, title="",
-                 preserve_clicks_on_view_change=False, preserve_zoom=False, toolbar_position="left",
-                 figsize=(4.5, 4.5)):
+                 preserve_clicks_on_view_change=False, preserve_lims=False, preserve_lims_on_view_change=False,
+                 toolbar_position="left", figsize=(4.5, 4.5)):
         if "ipympl" not in plt.get_backend():
             raise RuntimeError("Plotting must be performed in a JupyterLab environment "
                                "with the `%matplotlib widget` magic executed")
@@ -115,9 +119,13 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.n_views = len(self.plot_fn_list)
         self.current_view = 0
         self.preserve_clicks_on_view_change = preserve_clicks_on_view_change
-        self.preserve_zoom = preserve_zoom
-        self.current_view_pos = None
-        self.zoom_view_pos = None
+                
+        # Preserve limits-related attributes
+        self.preserve_lims = preserve_lims
+        self.preserve_lims_on_view_change = preserve_lims_on_view_change
+        self.current_axes_lims = None
+        self.home_axes_lims = None
+        self._axes_callbacks_oids = []
 
         # Click-related attributes
         self.start_click_time = None
@@ -274,6 +282,8 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
 
     def on_release(self, event):
         """Handle clicks and slices of the plot."""
+        if event.inaxes != self.ax:
+            return  # Discard clicks outside the main axes
         if time() - self.start_click_time < MAX_CLICK_TIME:  # Single click
             if (event.inaxes == self.ax) and (event.button == 1):
                 self.click((event.xdata, event.ydata))
@@ -285,15 +295,8 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
                 self.slice(self.start_click_coords, (event.xdata, event.ydata))
             elif self.slice_coords is not None:  # Restore previous valid slice
                 self.slice(*self.slice_coords)
-        elif self.preserve_zoom and self.zoom_button.value:
-            # Preserve same zoom between clicks if needed
-            self.zoom_view_pos = self._get_view_pos()
         self.start_click_time = None
         self.start_click_coords = None
-
-    def _get_view_pos(self):
-        """Get the current view limits and position."""
-        return [self.ax._get_view(), self.ax.get_position(True).frozen(), self.ax.get_position().frozen()]
 
     def on_press(self, event):
         """Undo mouse click or slice on ESC key press if allowed."""
@@ -308,16 +311,12 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
     def on_home_toggle(self, event):
         """Toggle home button."""
         _ = event
-        self.zoom_view_pos = None
         self.fig.canvas.toolbar.home()
-        self._set_view_pos(self.current_view_pos)
-
-    def _set_view_pos(self, view_pos):
-        """Set the view limits and position."""
-        view, pos_orig, pos_active = view_pos
-        self.ax._set_view(view)
-        self.ax._set_position(pos_orig, 'original')
-        self.ax._set_position(pos_active, 'active')
+        # Manually resore original axes limits since toolbar might store wrong limits after redraw
+        if self.home_axes_lims is not None:
+            self.ax.set_xlim(self.home_axes_lims[0])
+            self.ax.set_ylim(self.home_axes_lims[1])
+        self.current_axes_lims = None
 
     def on_pan_toggle(self, event):
         """Toggle pan button."""
@@ -336,6 +335,24 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
             self.pan_button.value = False
             self.pan_button.observe(self.on_pan_toggle, "value")
         self.fig.canvas.toolbar.zoom()
+
+    # Axes callbacks
+
+    def set_axes_callbacks(self):
+        """Set axes callbacks."""
+        xlim_oid = self.ax.callbacks.connect("xlim_changed", self.lims_update)
+        ylim_oid = self.ax.callbacks.connect("ylim_changed", self.lims_update)
+        self._axes_callbacks_oids.extend([xlim_oid, ylim_oid])
+
+    def lims_update(self, ax):
+        """Update `current_axes_lims` on limits change."""
+        self.current_axes_lims = (ax.get_xlim(), ax.get_ylim())
+
+    def remove_axes_callbacks(self):
+        """Remove all axes callbacks."""
+        for oid in self._axes_callbacks_oids:
+           self.ax.callbacks.disconnect(oid)
+        self._axes_callbacks_oids = []
 
     # General plot API
 
@@ -403,6 +420,9 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         if not self.preserve_clicks_on_view_change:
             self.click_coords = None
             self.slice_coords = None
+        if not self.preserve_lims_on_view_change:
+            self.current_axes_lims = None
+            self.home_axes_lims = None
         self.current_view = view
         self.redraw()
 
@@ -413,6 +433,9 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
 
     def clear(self):
         """Clear the plot axes and revert them to the initial state."""
+        # Remove callbacks to avoid its trigger on clean axes
+        self.remove_axes_callbacks()
+        self.home_axes_lims = None
         # Remove all axes except for the main one if they were created (e.g. a colorbar)
         for ax in self.fig.axes:
             if ax != self.ax:
@@ -422,6 +445,8 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.ax.set_aspect("auto")
         # Stretch the axes to its original size
         self.ax.set_axes_locator(None)
+        # Reset toolbar buttons history
+        self.fig.canvas.toolbar.update()
 
     def redraw(self, clear=True):
         """Redraw the current view. Optionally clear the plot axes first."""
@@ -430,11 +455,12 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.set_title()
         if self.plot_fn is not None:
             self.plot_fn(ax=self.ax)  # pylint: disable=not-callable
-            # Save the current view and position to be able to restore an original image if needed
-            self.current_view_pos = self._get_view_pos()
-            if self.preserve_zoom and self.zoom_view_pos is not None:
-                # Apply zoom to redrawn view
-                self._set_view_pos(self.zoom_view_pos)
+            # Save the current axes limits to be able to restore them on a home button toggle
+            self.home_axes_lims = (self.ax.get_xlim(), self.ax.get_ylim())
+            if self.preserve_lims and self.current_axes_lims is not None:
+                self.ax.set_xlim(self.current_axes_lims[0])
+                self.ax.set_ylim(self.current_axes_lims[1])
+            self.set_axes_callbacks()
         if self.click_coords is not None:
             self.click(self.click_coords)
         if self.slice_coords is not None:
