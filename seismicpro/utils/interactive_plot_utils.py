@@ -75,11 +75,10 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
     preserve_clicks_on_view_change : bool, optional, defaults to False
         Whether to preserve click/slice markers and trigger the corresponding event on view change.
     preserve_lims : bool, optional, defaults to False
-        Whether to preserve limits changes on views redraw. If redraw is performed without `self.plot_fn`, limits
-        won't be preserved.
+        Whether to preserve limits changes on each views on its redraw. If `self.plot_fn` is not given, limits won't be
+        preserved.
     preserve_lims_on_view_change : bool, optional, defaults to False
-        Whether to preserve limits changes on view change. If view change is performed without `self.plot_fn`, limits
-        won't be preserved.
+        Whether to preserve limits changes on view change.
     toolbar_position : {"top", "bottom", "left", "right"}, optional, defaults to "left"
         Toolbar position relative to the main axes.
     figsize : tuple with 2 elements, optional, defaults to (4.5, 4.5)
@@ -98,6 +97,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
     current_view : int
         An index of the current plot view.
     """
+    # pylint: disable-next=too-many-statements
     def __init__(self, *, plot_fn=None, click_fn=None, slice_fn=None, unclick_fn=None, marker_params=None, title="",
                  preserve_clicks_on_view_change=False, preserve_lims=False, preserve_lims_on_view_change=False,
                  toolbar_position="left", figsize=(4.5, 4.5)):
@@ -119,7 +119,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.n_views = len(self.plot_fn_list)
         self.current_view = 0
         self.preserve_clicks_on_view_change = preserve_clicks_on_view_change
-                
+
         # Preserve limits-related attributes
         self.preserve_lims = preserve_lims
         self.preserve_lims_on_view_change = preserve_lims_on_view_change
@@ -312,7 +312,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         """Toggle home button."""
         _ = event
         self.fig.canvas.toolbar.home()
-        # Manually resore original axes limits since toolbar might store wrong limits after redraw
+        # Manually set original axes limits since toolbar won't store axes limits after axes redraw
         if self.home_axes_lims is not None:
             self.ax.set_xlim(self.home_axes_lims[0])
             self.ax.set_ylim(self.home_axes_lims[1])
@@ -351,7 +351,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
     def remove_axes_callbacks(self):
         """Remove all axes callbacks."""
         for oid in self._axes_callbacks_oids:
-           self.ax.callbacks.disconnect(oid)
+            self.ax.callbacks.disconnect(oid)
         self._axes_callbacks_oids = []
 
     # General plot API
@@ -433,7 +433,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
 
     def clear(self):
         """Clear the plot axes and revert them to the initial state."""
-        # Remove callbacks to avoid its trigger on clean axes
+        # Remove callbacks to avoid its trigger on empty axes
         self.remove_axes_callbacks()
         self.home_axes_lims = None
         # Remove all axes except for the main one if they were created (e.g. a colorbar)
