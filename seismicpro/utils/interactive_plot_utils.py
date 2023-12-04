@@ -312,7 +312,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         """Toggle home button."""
         _ = event
         self.fig.canvas.toolbar.home()
-        # Manually set original axes limits since toolbar won't store axes limits after axes redraw
+        # Manually set original axes limits since toolbar won't reset them after axes redraw
         if self.home_axes_lims is not None:
             self.ax.set_xlim(self.home_axes_lims[0])
             self.ax.set_ylim(self.home_axes_lims[1])
