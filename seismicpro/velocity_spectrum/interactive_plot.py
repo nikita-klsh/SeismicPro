@@ -16,7 +16,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
     velocity by switching the view. The width of the hodograph matches the window size used to calculate the spectrum
     on both views. An initial click is performed on the maximum spectrum value.
     """
-    def __init__(self, velocity_spectrum, half_win_size=None, title=None, gather_plot_kwargs=None, 
+    def __init__(self, velocity_spectrum, half_win_size=10, title=None, gather_plot_kwargs=None, 
                  figsize=(4.5, 4.5), fontsize=8, orientation="horizontal", **kwargs):
         kwargs = {"fontsize": fontsize, **kwargs}
         text_kwargs = get_text_formatting_kwargs(**kwargs)
@@ -31,9 +31,8 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         self.click_vel = None
         self.velocity_spectrum = velocity_spectrum
         self.gather = self.velocity_spectrum.gather.copy(ignore="data").sort('offset')
-        plot_velocity_spectrum = super(type(velocity_spectrum), velocity_spectrum).plot   #there must be better way
-        self.plot_velocity_spectrum = partial(plot_velocity_spectrum, title=None, **kwargs)
-        self.half_win_size = half_win_size or self.velocity_spectrum.half_win_size_samples
+        self.plot_velocity_spectrum = partial(velocity_spectrum.plot, title="", **kwargs)
+        self.half_win_size = half_win_size
 
         super().__init__(orientation=orientation)
 
@@ -60,6 +59,11 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         """Get an optionally corrected gather."""
         raise NotImplementedError
 
+    @staticmethod
+    def hodograph_func(t0, x, v):
+        """ Compute hodograph times for given t0, offsets and velocity. """
+        raise NotImplementedError
+
     def get_hodograph_times(self, corrected):
         """Get hodograph times if a click has been performed."""
         if (self.click_time is None) or (self.click_vel is None):
@@ -76,10 +80,12 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         hodograph_times = self.get_hodograph_times(corrected=corrected)
         if hodograph_times is None:
             return
-        hodograph_y = self.velocity_spectrum.gather.times_to_indices(hodograph_times) - 0.5  # Correction for pixel center
-        hodograph_low = np.clip(hodograph_y - self.half_win_size, 0, self.gather.n_times - 1)
-        hodograph_high = np.clip(hodograph_y + self.half_win_size, 0, self.gather.n_times - 1)
-        ax.fill_between(np.arange(len(hodograph_y)), hodograph_low, hodograph_high, color="tab:blue", alpha=0.5)
+        self.plot_hodograph(ax, hodograph_times)
+
+    def plot_hodograph(self, ax, hodograph_times, color="tab:blue", mask=None):
+        hodograph_low = np.clip(self.velocity_spectrum.gather.times_to_indices(hodograph_times - self.half_win_size) - 0.5, 0, self.gather.n_times - 1)
+        hodograph_high = np.clip(self.velocity_spectrum.gather.times_to_indices(hodograph_times + self.half_win_size) - 0.5, 0, self.gather.n_times - 1)
+        ax.fill_between(np.arange(len(hodograph_times)), hodograph_low, hodograph_high, mask, color=color, alpha=0.5)
 
     def get_velocity_time_by_coords(self, coords):
         return coords[0], coords[1]
@@ -109,10 +115,16 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
         """Get an optionally corrected gather."""
         if not corrected:
             return self.gather
-        max_stretch_factor = self.velocity_spectrum.correction_func_args[0]
+    
+        max_stretch_factor = self.velocity_spectrum.max_stretch_factor
         return self.gather.copy(ignore=["headers", "data", "samples"]) \
                           .apply_nmo(self.click_vel, max_stretch_factor=max_stretch_factor)
 
+    def plot_hodograph(self, ax, hodograph_times):
+        max_offset = self.click_time * self.click_vel * np.sqrt((1 + self.velocity_spectrum.max_stretch_factor)**2 - 1) / 1000
+        super().plot_hodograph(ax, hodograph_times, "tab:blue", self.gather.offsets < max_offset)
+        super().plot_hodograph(ax, hodograph_times, "tab:red", self.gather.offsets > max_offset)
+        
 
 class SlantStackPlot(VelocitySpectrumPlot):
     

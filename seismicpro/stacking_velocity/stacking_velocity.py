@@ -190,9 +190,9 @@ class StackingVelocity(VFUNC):
         stacking_velocity_params = calculate_stacking_velocity(spectrum, **kwargs)
         times, velocities, bounds_times, min_velocity_bound, max_velocity_bound = stacking_velocity_params
         coords = spectrum.coords  # Evaluate only once
-        stacking_velocity = cls(times, velocities, coords=coords)
-        stacking_velocity.bounds = [cls(bounds_times, min_velocity_bound, coords=coords),
-                                    cls(bounds_times, max_velocity_bound, coords=coords)]
+        stacking_velocity = cls(times, velocities, coords=coords, 
+                                bounds = [cls(bounds_times, min_velocity_bound, coords=coords), 
+                                          cls(bounds_times, max_velocity_bound, coords=coords)])
         return stacking_velocity
 
     def __call__(self, times):

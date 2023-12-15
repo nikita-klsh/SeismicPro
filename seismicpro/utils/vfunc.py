@@ -126,7 +126,7 @@ class VFUNC:
     `data_y`. VFUNC instances are callable and return interpolated `y` values for given values of `x`. Values outside
     the `data_x` range are linearly extrapolated.
     """
-    def __init__(self, data_x, data_y, coords=None):
+    def __init__(self, data_x, data_y, coords=None, bounds=None):
         self.data_x = np.array(data_x)
         self.data_y = np.array(data_y)
         self.validate_data()
@@ -134,7 +134,7 @@ class VFUNC:
         if coords is not None and not isinstance(coords, Coordinates):
             raise ValueError("coords must be either None or an instance of Coordinates")
         self.coords = coords
-        self.bounds = None
+        self.bounds = bounds
 
     def validate_data(self):
         """Validate whether `data_x` and `data_y` are 1d arrays of the same shape."""
@@ -206,12 +206,16 @@ class VFUNC:
     def copy(self):
         return deepcopy(self)
 
-    def recalculate(self, start_x, end_x):
+    def crop(self, start_x, end_x):
         valid_x_mask = (self.data_x > start_x) & (self.data_x < end_x)
         valid_x = np.sort(self.data_x[valid_x_mask])
         new_x = np.concatenate([[start_x], valid_x, [end_x]])
         self.data_x = new_x
         self.data_y = self(new_x)
+
+        if self.bounds is not None:
+            bounds[0].crop(start_x, end_x)
+            bounds[1].crop(start_x, end_x)
         return self
 
 

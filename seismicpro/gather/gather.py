@@ -984,7 +984,7 @@ class Gather(TraceContainer, SamplesContainer):
             stacking_velocity = np.float32(stacking_velocity / 1000)  # from m/s to m/ms
             self.data = correction.apply_constant_velocity_nmo(self.data, self.offsets, self.sample_interval,
                                                                self.delay, self.times, stacking_velocity,
-                                                               interpolate, fill_value, max_stretch_factor)
+                                                               max_stretch_factor, interpolate, fill_value)
             return self
 
         if isinstance(stacking_velocity, StackingVelocityField):

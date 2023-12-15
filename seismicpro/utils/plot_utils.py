@@ -85,7 +85,7 @@ def format_subplot_yticklabels(ax, fontsize=None, fontfamily=None, fontweight=No
 
 
 def set_ticks(ax, axis, label='', major_labels=None, minor_labels=None, num=None,
-              step_ticks=None, step_labels=None, round_to=0, **kwargs):
+              step_ticks=None, step_labels=None, round_to=0, axes_has_units=False, **kwargs):
     """Set ticks and labels for `x` or `y` axis depending on the `axis`.
 
     Parameters
@@ -124,11 +124,12 @@ def set_ticks(ax, axis, label='', major_labels=None, minor_labels=None, num=None
         If `step_labels` is provided when tick_labels are None or not monotonically increasing.
     """
     locator, formatter = _process_ticks(labels=major_labels, num=num, step_ticks=step_ticks,
-                                        step_labels=step_labels, round_to=round_to)
+                                        step_labels=step_labels, round_to=round_to, axes_has_units=axes_has_units)
     rotation_kwargs = _pop_rotation_kwargs(kwargs)
     ax_obj = getattr(ax, f"{axis}axis")
     ax_obj.set_label_text(label, **kwargs)
     ax_obj.set_ticklabels([], **kwargs, **rotation_kwargs)
+    # ax_obj.set_tick_params(**kwargs, **rotation_kwargs)
     ax_obj.set_major_locator(locator)
     ax_obj.set_major_formatter(formatter)
 
@@ -139,7 +140,7 @@ def set_ticks(ax, axis, label='', major_labels=None, minor_labels=None, num=None
         ax_obj.set_tick_params(which='minor', labelsize=kwargs.get("fontsize", plt.rcParams['font.size']) * 0.8)
 
 
-def _process_ticks(labels, num=None, step_ticks=None, step_labels=None, round_to=0):
+def _process_ticks(labels, num=None, step_ticks=None, step_labels=None, round_to=0, axes_has_units=False):
     """Create an axis locator and formatter by given `labels` and tick layout parameters."""
     if num is not None:
         locator = ticker.LinearLocator(num)
@@ -173,7 +174,7 @@ def _process_ticks(labels, num=None, step_ticks=None, step_labels=None, round_to
         label_value = labels[np.round(tick).astype(np.int32)]
         return round_tick(label_value, round_to=round_to)
 
-    if labels is None:
+    if labels is None or axes_has_units:
         formatter = partial(round_tick, round_to=round_to)
     else:
         formatter = partial(get_tick_from_labels, labels=labels, round_to=round_to)
