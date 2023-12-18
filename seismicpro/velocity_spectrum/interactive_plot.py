@@ -32,7 +32,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         self.velocity_spectrum = velocity_spectrum
         self.gather = self.velocity_spectrum.gather.copy(ignore="data").sort('offset')
         self.plot_velocity_spectrum = partial(velocity_spectrum.plot, title="", **kwargs)
-        self.half_win_size = half_win_size
+        self.half_win_size = half_win_size or 10
 
         super().__init__(orientation=orientation)
 

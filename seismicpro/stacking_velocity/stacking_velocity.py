@@ -65,9 +65,8 @@ class StackingVelocity(VFUNC):
         Left and right bounds of an area for stacking velocity picking. Defined only if the stacking velocity was
         created using `from_vertical_velocity_spectrum`.
     """
-    def __init__(self, times, velocities, coords=None):
-        super().__init__(times, velocities, coords=coords)
-        self.bounds = None
+    def __init__(self, times, velocities, coords=None, bounds=None):
+        super().__init__(times, velocities, coords=coords, bounds=bounds)
 
     @property
     def times(self):

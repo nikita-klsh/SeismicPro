@@ -131,10 +131,18 @@ class VFUNC:
         self.data_y = np.array(data_y)
         self.validate_data()
         self.interpolator = interp1d(self.data_x, self.data_y)
+
         if coords is not None and not isinstance(coords, Coordinates):
             raise ValueError("coords must be either None or an instance of Coordinates")
         self.coords = coords
-        self.bounds = bounds
+
+        if bounds is None:
+            self.bounds = bounds
+        elif len(bounds) == 2 and all([isinstance(bound, VFUNC) for bound in bounds]):
+            self.bounds = [bound.copy() for bound in bounds]
+        else:
+            raise ValueError("bounds must be either None or iterable with 2 VFUNCs")
+
 
     def validate_data(self):
         """Validate whether `data_x` and `data_y` are 1d arrays of the same shape."""
@@ -214,8 +222,8 @@ class VFUNC:
         self.data_y = self(new_x)
 
         if self.bounds is not None:
-            bounds[0].crop(start_x, end_x)
-            bounds[1].crop(start_x, end_x)
+            self.bounds[0].crop(start_x, end_x)
+            self.bounds[1].crop(start_x, end_x)
         return self
 
 
