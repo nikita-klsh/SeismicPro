@@ -302,15 +302,15 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     """
     correction_type = 'NMO'
 
-    def __init__(self, *args, stacking_velocity=None, coherency_func=None, relative_margin=None, 
-                 half_win_size_samples=None, max_stretch_factor=np.inf, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
     
-        self.stacking_velocity = stacking_velocity
-        self.coherency_func = coherency_func
-        self.half_win_size_samples = half_win_size_samples
-        self.max_stretch_factor = max_stretch_factor
-        self.relative_margin = relative_margin
+        # Set attributes relative to instance created `from_gather `.
+        self.stacking_velocity = None
+        self.coherency_func = None
+        self.half_win_size_samples = None
+        self.max_stretch_factor = np.inf
+        self.relative_margin = None
 
     
     @property
@@ -348,15 +348,14 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
                   "correction_func": cls.correction_type, "max_strecth_factor": max_stretch_factor}
         
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
-        spectrum = cls(velocity_spectrum, velocities, gather.times, gather.coords, stacking_velocity=stacking_velocity, coherency_func=coherency_func, 
-                       half_win_size_samples=half_win_size_samples, max_stretch_factor=max_stretch_factor, relative_margin=relative_margin, gather=gather)
+        spectrum = cls(velocity_spectrum, velocities, gather.times, gather.coords, gather=gather.copy())
     
-        # spectrum.stacking_velocity = stacking_velocity
-        # spectrum.relative_margin = relative_margin
+        spectrum.stacking_velocity = stacking_velocity
+        spectrum.relative_margin = relative_margin
     
-        # spectrum.coherency_func = coherency_func
-        # spectrum.half_win_size_samples = half_win_size_samples
-        # spectrum.max_stretch_factor = max_stretch_factor
+        spectrum.coherency_func = coherency_func
+        spectrum.half_win_size_samples = half_win_size_samples
+        spectrum.max_stretch_factor = max_stretch_factor
         return spectrum
 
 
@@ -532,14 +531,13 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     """
     correction_type = 'NMO'
 
-    def __init__(self, *args, stacking_velocity=None, coherency_func=None, 
-                 half_win_size_samples=None, max_stretch_factor=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
     
-        self.stacking_velocity = stacking_velocity
-        self.coherency_func = coherency_func
-        self.half_win_size_samples = half_win_size_samples
-        self.max_stretch_factor = max_stretch_factor
+        self.stacking_velocity = None
+        self.coherency_func = None
+        self.half_win_size_samples = None
+        self.max_stretch_factor = np.inf
 
     @property
     def margins(self):
@@ -575,15 +573,12 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
         margins, margin_step = np.linspace(-relative_margin, relative_margin, velocity_spectrum.shape[1], retstep=True)
-        spectrum = cls(velocity_spectrum, margins, gather.times, gather.coords, 
-                       stacking_velocity=stacking_velocity.copy().crop(gather.times[0], gather.times[-1]), 
-                       coherency_func=coherency_func, half_win_size_samples=half_win_size_samples, 
-                       max_stretch_factor=max_stretch_factor, gather=gather)
+        spectrum = cls(velocity_spectrum, margins, gather.times, gather.coords, gather=gather)
         
-        # spectrum.stacking_velocity = stacking_velocity.copy().crop(gather.times[0], gather.times[-1])
-        # spectrum.coherency_func = coherency_func
-        # spectrum.half_win_size_samples = half_win_size_samples
-        # spectrum.max_stretch_factor = max_stretch_factor
+        spectrum.stacking_velocity = stacking_velocity.copy().crop(gather.times[0], gather.times[-1])
+        spectrum.coherency_func = coherency_func
+        spectrum.half_win_size_samples = half_win_size_samples
+        spectrum.max_stretch_factor = max_stretch_factor
         return spectrum
 
 
