@@ -123,6 +123,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         # Preserve limits-related attributes
         self.preserve_lims = preserve_lims
         self.preserve_lims_on_view_change = preserve_lims_on_view_change
+        self.preserve_view_lims = False
         self.current_axes_lims = None
         self.home_axes_lims = None
         self._axes_callbacks_oids = []
@@ -340,11 +341,11 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
 
     def set_axes_callbacks(self):
         """Set axes callbacks."""
-        xlim_oid = self.ax.callbacks.connect("xlim_changed", self.lims_update)
-        ylim_oid = self.ax.callbacks.connect("ylim_changed", self.lims_update)
+        xlim_oid = self.ax.callbacks.connect("xlim_changed", self.update_lims)
+        ylim_oid = self.ax.callbacks.connect("ylim_changed", self.update_lims)
         self._axes_callbacks_oids.extend([xlim_oid, ylim_oid])
 
-    def lims_update(self, ax):
+    def update_lims(self, ax):
         """Update `current_axes_lims` on limits change."""
         self.current_axes_lims = (ax.get_xlim(), ax.get_ylim())
 
@@ -422,9 +423,11 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
             self.slice_coords = None
         if not self.preserve_lims_on_view_change:
             self.current_axes_lims = None
-            self.home_axes_lims = None
+        else:
+            self.preserve_view_lims = True
         self.current_view = view
         self.redraw()
+        self.preserve_view_lims = False
 
     def set_title(self, title=None):
         """Update the plot title. If `title` is not given, the default title of the current view is used."""
@@ -457,7 +460,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
             self.plot_fn(ax=self.ax)  # pylint: disable=not-callable
             # Save the current axes limits to be able to restore them on a home button toggle
             self.home_axes_lims = (self.ax.get_xlim(), self.ax.get_ylim())
-            if self.preserve_lims and self.current_axes_lims is not None:
+            if (self.preserve_lims or self.preserve_view_lims) and self.current_axes_lims is not None:
                 self.ax.set_xlim(self.current_axes_lims[0])
                 self.ax.set_ylim(self.current_axes_lims[1])
             self.set_axes_callbacks()
@@ -664,6 +667,15 @@ class DropdownOptionPlot(InteractivePlot):
         if redraw:
             self.redraw()
 
+    def on_view_change(self, option_ix, options=None, redraw=True):
+        """Update plot limits and options on view change."""
+        if not self.preserve_lims_on_view_change:
+            self.current_axes_lims = None
+        else:
+            self.preserve_view_lims = True
+        self.update_state(option_ix=option_ix, options=options, redraw=redraw)
+        self.preserve_view_lims = False
+
     def reverse_options(self, event):
         """Reverse options order. Keep the currently active option unchanged."""
         _ = event
@@ -672,17 +684,17 @@ class DropdownOptionPlot(InteractivePlot):
     def next_option(self, event):
         """Switch to the next option."""
         _ = event
-        self.update_state(min(self.current_option_ix + 1, len(self.options) - 1))
+        self.on_view_change(min(self.current_option_ix + 1, len(self.options) - 1))
 
     def prev_option(self, event):
         """Switch to the previous option."""
         _ = event
-        self.update_state(max(self.current_option_ix - 1, 0))
+        self.on_view_change(max(self.current_option_ix - 1, 0))
 
     def select_option(self, change):
         """Select an option."""
         _ = change
-        self.update_state(self.drop.index)
+        self.on_view_change(self.drop.index)
 
 
 class PairedPlot:
