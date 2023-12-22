@@ -1,4 +1,4 @@
-""""Base class for various transforms of seismic wavefield. """
+"""Base class for various transforms of seismic wavefield. """
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -17,18 +17,36 @@ class Spectrum:
         self.coords = coords
 
 
-    @batch_method(target="for", copy_src=False)
-    def scale_maxabs(self):
-        spectrum_max = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5
-        self.spectrum = np.where(spectrum_max != 0, self.spectrum / spectrum_max, 0)
-        return self
+    @property
+    def sample_interval(self):
+        dy = np.diff(self.y_values)
+        if np.allclose(dy, dy[0]):
+            return dy[0]
+        else: 
+            return None
+
+
+    @property
+    def is_y_axis_uniform(self):
+        return self.sample_interval is not None
+
+
+    @property
+    def is_x_axis_uniform(self):
+        dx = np.diff(self.x_values)
+        return np.allclose(dx, dx[0])
 
 
     @property
     def are_axes_uniform(self):
-        dx = np.diff(self.x_values)
-        dy = np.diff(self.y_values)
-        return np.allclose(dx, dx[0]) and np.allclose(dy, dy[0])
+        return self.is_x_axis_uniform and self.is_y_axis_uniform
+
+
+    @batch_method(target="for", copy_src=False)
+    def scale_norm(self, ord=2):
+        l2_norm = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5
+        self.spectrum = np.where(spectrum_max != 0, self.spectrum / l2_norm, 0)
+        return self
 
 
     @plotter(figsize=(10, 9))

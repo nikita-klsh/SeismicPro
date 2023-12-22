@@ -33,7 +33,7 @@ COHERENCY_FUNCS = {
 }
 
 
-class BaseVelocitySpectrum(Spectrum):
+class BaseVelocitySpectrum(Spectrum, SamplesContainer):
     """Base class for vertical velocity spectrum calculation.
 
     Implements general computation logic and a method for spectrum visualization.
@@ -75,12 +75,7 @@ class BaseVelocitySpectrum(Spectrum):
 
     @property
     def samples(self):
-        return self.gather.samples
-
-    @property
-    def sample_interval(self):
-        """float: Sample interval of seismic traces. Measured in milliseconds."""
-        return self.gather.sample_interval
+        return self.y_values
 
 
     @staticmethod
@@ -381,7 +376,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         if isinstance(stacking_velocity, StackingVelocityField):
             stacking_velocity = stacking_velocity(self.coords)
         plot_kwargs = {"vfunc": stacking_velocity, "plot_bounds": plot_bounds, "title": title,
-                      "half_win_size": self.half_win_size_samples,
+                      "half_win_size": self.half_win_size_samples or 10,
                       "x_label": "Velocity, m/s", "y_label": 'Time, ms', "grid": grid, "colorbar": colorbar,
                       "x_ticker": x_ticker, "y_ticker": y_ticker, **kwargs} 
 
@@ -661,7 +656,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
             stacking_velocity.bounds = [VFUNC([0, self.samples[-1]], [-acceptable_margin, -acceptable_margin]),
                                         VFUNC([0, self.samples[-1]], [acceptable_margin, acceptable_margin])]
 
-        plot_kwargs = {"vfunc": stacking_velocity, "title": title, "half_win_size": self.half_win_size_samples,
+        plot_kwargs = {"vfunc": stacking_velocity, "title": title, "half_win_size": self.half_win_size_samples or 10,
                        "x_label": "Margin, %", "y_label": 'Time, ms', "grid": grid, "colorbar": colorbar,
                        "x_ticker": x_ticker, "y_ticker": y_ticker, **kwargs} 
 
