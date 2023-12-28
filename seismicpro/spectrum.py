@@ -43,7 +43,7 @@ class Spectrum:
 
 
     @batch_method(target="t", copy_src=False)
-    def scale_norm(self, ord=2):
+    def scale_norm(self):
         l2_norm = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5
         self.spectrum = np.where(spectrum_max != 0, self.spectrum / l2_norm, 0)
         return self
