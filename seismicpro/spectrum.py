@@ -42,7 +42,7 @@ class Spectrum:
         return self.is_x_axis_uniform and self.is_y_axis_uniform
 
 
-    @batch_method(target="for", copy_src=False)
+    @batch_method(target="t", copy_src=False)
     def scale_norm(self, ord=2):
         l2_norm = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5
         self.spectrum = np.where(spectrum_max != 0, self.spectrum / l2_norm, 0)
