@@ -12,9 +12,9 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
     """Define an interactive velocity spectrum plot.
 
     This plot also displays the gather used to calculate the velocity spectrum. Clicking on velocity spectrum highlight
-    the corresponding hodograph on the gather plot and allows performing NMO correction of the gather with the selected
-    velocity by switching the view. The width of the hodograph matches the window size used to calculate the spectrum
-    on both views. An initial click is performed on the maximum spectrum value.
+    the corresponding hodograph on the gather plot and allows performing NMO or LMO correction of the gather with
+    the selected velocity by switching the view. The width of the hodograph matches the window size used to calculate
+    the spectrum on both views. An initial click is performed on the maximum spectrum value.
     """
     def __init__(self, velocity_spectrum, half_win_size=10, title=None, gather_plot_kwargs=None, 
                  figsize=(4.5, 4.5), fontsize=8, orientation="horizontal", **kwargs):
@@ -83,11 +83,15 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         self.plot_hodograph(ax, hodograph_times)
 
     def plot_hodograph(self, ax, hodograph_times, color="tab:blue", mask=None, label=None):
-        hodograph_low = np.clip(self.velocity_spectrum.gather.times_to_indices(hodograph_times - self.half_win_size) - 0.5, 0, self.gather.n_times - 1)
-        hodograph_high = np.clip(self.velocity_spectrum.gather.times_to_indices(hodograph_times + self.half_win_size) - 0.5, 0, self.gather.n_times - 1)
+        """Plot the hodograph. """
+        hodograph_low = np.clip(self.velocity_spectrum.times_to_indices(hodograph_times - self.half_win_size) - 0.5,
+                                0, self.gather.n_times - 1)
+        hodograph_high = np.clip(self.velocity_spectrum.times_to_indices(hodograph_times + self.half_win_size) - 0.5,
+                                0, self.gather.n_times - 1)
         ax.fill_between(np.arange(len(hodograph_times)), hodograph_low, hodograph_high, mask, color=color, alpha=0.5, label=label)
 
     def get_velocity_time_by_coords(self, coords):
+        """ Transform click coords to units. """
         return coords[0], coords[1]
     
     def click(self, coords):
@@ -106,6 +110,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
 
 
 class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
+    """ Interactive Vertical Velocity Spectrum plot. """
     
     @staticmethod
     def hodograph_func(t0, x, v):
@@ -121,13 +126,15 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
                           .apply_nmo(self.click_vel, max_stretch_factor=max_stretch_factor)
 
     def plot_hodograph(self, ax, hodograph_times):
+        """ Plot hodograph and highlight it's stretch and non-stretch zones """
         max_offset = self.click_time * self.click_vel * np.sqrt((1 + self.velocity_spectrum.max_stretch_factor)**2 - 1) / 1000
         super().plot_hodograph(ax, hodograph_times, "tab:blue", self.gather.offsets < max_offset, 'non-stretch muted')
-        super().plot_hodograph(ax, hodograph_times, "tab:red", self.gather.offsets > max_offset, label='stretch muted')
+        super().plot_hodograph(ax, hodograph_times, "tab:red", self.gather.offsets > max_offset, 'stretch muted')
         ax.legend(loc='upper right', fontsize='small')
         
 
 class SlantStackPlot(VelocitySpectrumPlot):
+    """ Interactive Slant Stack plot. """
     
     @staticmethod
     def hodograph_func(t0, x, v):
@@ -142,6 +149,7 @@ class SlantStackPlot(VelocitySpectrumPlot):
 
 
 class RedidualVelocitySpectrumPlot(VerticalVelocitySpectrumPlot):
+    """ Interactive Residual Velocity Spectrum plot. """
     
     def get_velocity_time_by_coords(self, coords):
         click_margin, click_time = coords[0], coords[1]

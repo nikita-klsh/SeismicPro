@@ -753,10 +753,6 @@ class Gather(TraceContainer, SamplesContainer):
     #             Vertical Velocity Spectrum calculation methods             #
     #------------------------------------------------------------------------#
 
-    @batch_method(target="threads", copy_src=False)
-    def calculate_slant_stack(self, velocities=None):
-        return SlantStack.from_gather(self, velocities=velocities)
-
     @batch_method(target="for", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_vertical_velocity_spectrum(self, velocities=None, stacking_velocity=None, relative_margin=0.2,
                                              velocity_step=50, window_size=50, mode='semblance',
@@ -888,6 +884,24 @@ class Gather(TraceContainer, SamplesContainer):
                                         relative_margin=relative_margin, velocity_step=velocity_step,
                                         window_size=window_size, mode=mode, max_stretch_factor=max_stretch_factor,
                                         interpolate=interpolate)
+
+    @batch_method(target="threads", copy_src=False)
+    def calculate_slant_stack(self, velocities=None):
+        """ Calculate slant stack transform of the gather.
+
+        Parameters
+        ----------
+        velocities : 1d np.ndarray, optional, defaults to None
+            An array of velocities to calculate the slant stack for. Measured in meters/seconds.
+            If not provided, covers the range from 100m/s to 2400m/s with step 50.
+
+        Returns
+        -------
+        slant_stack : SlantStack
+            Calculated slant stack transform.
+
+        """
+        return SlantStack.from_gather(self, velocities=velocities)
 
     #------------------------------------------------------------------------#
     #                           Gather corrections                           #

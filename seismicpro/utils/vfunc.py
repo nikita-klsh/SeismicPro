@@ -143,11 +143,37 @@ class VFUNC:
         else:
             raise ValueError("bounds must be either None or iterable with 2 VFUNCs")
 
-
     def validate_data(self):
         """Validate whether `data_x` and `data_y` are 1d arrays of the same shape."""
         if self.data_x.ndim != 1 or self.data_x.shape != self.data_y.shape:
             raise ValueError("Inconsistent shapes of times and velocities")
+
+    def copy(self):
+        """ Return a new copy of VFUNC. """
+        return deepcopy(self)
+
+    @plotter(figsize=(7,5))
+    def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
+        """ Plot VFUNC on given axes. """
+        ax.plot(self.data_y, self.data_x, **kwargs)
+        if self.bounds is not None and plot_bounds:
+            ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
+        if invert:
+            ax.invert_yaxis()
+
+
+    def crop(self, start_x, end_x):
+        """ Either extend or cut x_values to provided range."""
+        valid_x_mask = (self.data_x > start_x) & (self.data_x < end_x)
+        valid_x = np.sort(self.data_x[valid_x_mask])
+        new_x = np.concatenate([[start_x], valid_x, [end_x]])
+        self.data_x = new_x
+        self.data_y = self(new_x)
+
+        if self.bounds is not None:
+            self.bounds[0].crop(start_x, end_x)
+            self.bounds[1].crop(start_x, end_x)
+        return self
 
     @property
     def has_coords(self):
@@ -202,30 +228,6 @@ class VFUNC:
         """
         coords, data_x, data_y = read_single_vfunc(path, coords_cols=coords_cols, encoding=encoding)
         return cls(data_x, data_y, coords=coords)
-
-    @plotter(figsize=(7,5))
-    def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
-        ax.plot(self.data_y, self.data_x, **kwargs)
-        if self.bounds is not None and plot_bounds:
-            ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
-        if invert:
-            ax.invert_yaxis()
-
-    def copy(self):
-        return deepcopy(self)
-
-    def crop(self, start_x, end_x):
-        valid_x_mask = (self.data_x > start_x) & (self.data_x < end_x)
-        valid_x = np.sort(self.data_x[valid_x_mask])
-        new_x = np.concatenate([[start_x], valid_x, [end_x]])
-        self.data_x = new_x
-        self.data_y = self(new_x)
-
-        if self.bounds is not None:
-            self.bounds[0].crop(start_x, end_x)
-            self.bounds[1].crop(start_x, end_x)
-        return self
-
 
     def dump(self, path, encoding="UTF-8"):
         """Dump the vertical function to a file in Paradigm Echos VFUNC format.

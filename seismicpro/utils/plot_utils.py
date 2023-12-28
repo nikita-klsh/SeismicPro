@@ -109,6 +109,8 @@ def set_ticks(ax, axis, label='', major_labels=None, minor_labels=None, num=None
         axis, whose labels are measured in milliseconds). Should be None if `tick_labels` is None.
     round_to : int, optional, defaults to 0
         The number of decimal places to round tick labels to. If 0, tick labels will be cast to integers.
+    axes_has_units: bool, optional, defaults to False
+        Whether the axes on which the ticks are being plotted exist in units, not in pixels indices. 
     kwargs : misc, optional
         Additional keyword arguments to control text formatting and rotation. Passed directly to
         `matplotlib.axis.Axis.set_label_text` and `matplotlib.axis.Axis.set_ticklabels`.

@@ -50,6 +50,8 @@ class StackingVelocity(VFUNC):
     coords : Coordinates or None, optional, defaults to None
         Spatial coordinates of the stacking velocity. If not given, the created instance won't be able to be added to a
         `StackingVelocityField`.
+    bounds : list of two StackingVelocity or None
+        Left and right bounds for some meaningful area around stacking velocity.
 
     Attributes
     ----------
@@ -62,8 +64,8 @@ class StackingVelocity(VFUNC):
     coords : Coordinates or None
         Spatial coordinates of the stacking velocity.
     bounds : list of two StackingVelocity or None
-        Left and right bounds of an area for stacking velocity picking. Defined only if the stacking velocity was
-        created using `from_vertical_velocity_spectrum`.
+        Left and right bounds of meaningful area around stacking velocity. For example, defined if the stacking
+        velocity was created using `from_vertical_velocity_spectrum`.
     """
     def __init__(self, times, velocities, coords=None, bounds=None):
         super().__init__(times, velocities, coords=coords, bounds=bounds)

@@ -1,4 +1,4 @@
-"""Implements VerticalVelocitySpectrum and ResidualVelocitySpectrum classes."""
+"""Implements VerticalVelocitySpectrum, ResidualVelocitySpectrum and SlantStack classes."""
 
 # pylint: disable=not-an-iterable, too-many-arguments
 import math
@@ -34,37 +34,9 @@ COHERENCY_FUNCS = {
 
 
 class BaseVelocitySpectrum(Spectrum, SamplesContainer):
-    """Base class for vertical velocity spectrum calculation.
-
-    Implements general computation logic and a method for spectrum visualization.
-
-    Parameters
-    ----------
-    gather : Gather
-        Seismic gather to calculate velocity spectrum for.
-    window_size : float
-        Temporal window size used for velocity spectrum calculation. The higher the `window_size` is, the smoother the
-        resulting velocity spectrum will be but to the detriment of small details. Measured in milliseconds.
-    mode: str, defaults to `semblance`
-        A measure for estimating hodograph coherency. See `COHERENCY_FUNCS` for available options.
-    max_stretch_factor : float, defaults to np.inf
-        Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO correction.
-        This mute is applied after NMO correction for each provided velocity and before coherency calculation. The
-        lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
-        Reasonably good value is 0.65.
-
-    Attributes
-    ----------
-    gather : Gather
-        Seismic gather for which velocity spectrum calculation was called.
-    half_win_size_samples : int
-        Half of the temporal window size for smoothing the velocity spectrum. Measured in samples.
-    coherency_func : callable
-        A function that estimates the chosen coherency measure for a hodograph.
-    max_stretch_factor : float
-        Maximum allowable factor for stretch muter.
+    """Base class for velocity spectrum calculation. 
+    Implements general spectrum computation logic based on the seismic gather. 
     """
-
     def __init__(self, *args, gather=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.gather = gather
@@ -77,12 +49,11 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
     def samples(self):
         return self.y_values
 
-
     @staticmethod
     @njit(nogil=True, fastmath=True, parallel=True)
     def calc_single_velocity_spectrum(coherency_func, gather_data, times, offsets, velocity, sample_interval, delay,
-                                      half_win_size_samples, t_min_ix, t_max_ix,
-                                      interpolate=True, correction_func=None, max_strecth_factor=np.inf, out=None):
+                                      half_win_size_samples, t_min_ix, t_max_ix, interpolate=True, 
+                                      max_strecth_factor=np.inf, correction_type=None, out=None):
         """Calculate velocity spectrum for a given range of zero-offset traveltimes and constant velocity.
 
         Parameters
@@ -114,6 +85,8 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         interpolate: bool, optional, defaults to True
             Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
             at the nearest time sample is used.
+        correction_type: str, 'NMO' or 'LMO'
+            Type of correction to perform for given velocity. 'NMO' for normal moveout, 'LMO' for linear moveout.
         out : np.array, optional
             The buffer to store result in. If not provided, a new array is allocated.
 
@@ -151,7 +124,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
     @staticmethod
     @njit(nogil=True, fastmath=True, parallel=True)
     def _calc_spectrum_numba(spectrum_func, coherency_func, gather_data, times, offsets, velocities, sample_interval,
-                             delay, half_win_size_samples, interpolate, correction_func, max_strecth_factor):
+                             delay, half_win_size_samples, interpolate, correction_type, max_strecth_factor):
         """Parallelized and njitted method for vertical velocity spectrum calculation.
 
         Parameters
@@ -160,6 +133,8 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
             Base function for velocity spectrum calculation for a single velocity and a time range.
         coherency_func : njitted callable
             A function for hodograph coherency estimation.
+        correction_type: str, 'LMO' or 'NMO'
+            Type of correction to perform. 'NMO' for normal moveout, 'LMO' for linear moveout.
         other parameters : misc
             Passed directly from class attributes or `__init__` arguments (except for `velocities` which are converted
             from m/s to m/ms).
@@ -175,7 +150,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
                           velocity=velocities[j], sample_interval=sample_interval, delay=delay,
                           half_win_size_samples=half_win_size_samples, t_min_ix=0, t_max_ix=gather_data.shape[1],
                           interpolate=interpolate, out=velocity_spectrum[:, j],
-                          correction_func=correction_func, max_strecth_factor=max_strecth_factor)
+                          correction_type=correction_type, max_strecth_factor=max_strecth_factor)
         return velocity_spectrum
 
 
@@ -186,7 +161,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     coherent the signal is along a hyperbolic trajectory over the entire spread length of the gather.
 
     Velocity spectrum instance can be created either directly by passing source gather (and optional parameters such as
-    velocity range, window size, coherency measure and a factor for stretch mute) to its `__init__` or by calling
+    velocity range,  window size, coherency measure and a factor for stretch mute) to its `__init__` or by calling
     :func:`~Gather.calculate_vertical_velocity_spectrum` method (recommended way).
 
     The velocity spectrum is computed by:
@@ -297,8 +272,8 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     """
     correction_type = 'NMO'
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, spectrum, velocities, times, gather=None, coords=None):
+        super().__init__(spectrum, velocities, times, gather=gather, coords=coords)
     
         # Set attributes relative to instance created `from_gather `.
         self.stacking_velocity = None
@@ -306,7 +281,6 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         self.half_win_size_samples = None
         self.max_stretch_factor = np.inf
         self.relative_margin = None
-
     
     @property
     def n_velocities(self):
@@ -526,9 +500,10 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     """
     correction_type = 'NMO'
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, spectrum, margins, times, gather=None, coords=None):
+        super().__init__(spectrum, margins, times, gather=gather, coords=coords)
     
+        # Set attributes relative to instance created `from_gather `.
         self.stacking_velocity = None
         self.coherency_func = None
         self.half_win_size_samples = None
