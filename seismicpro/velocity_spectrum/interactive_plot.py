@@ -82,10 +82,10 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
             return
         self.plot_hodograph(ax, hodograph_times)
 
-    def plot_hodograph(self, ax, hodograph_times, color="tab:blue", mask=None):
+    def plot_hodograph(self, ax, hodograph_times, color="tab:blue", mask=None, label=None):
         hodograph_low = np.clip(self.velocity_spectrum.gather.times_to_indices(hodograph_times - self.half_win_size) - 0.5, 0, self.gather.n_times - 1)
         hodograph_high = np.clip(self.velocity_spectrum.gather.times_to_indices(hodograph_times + self.half_win_size) - 0.5, 0, self.gather.n_times - 1)
-        ax.fill_between(np.arange(len(hodograph_times)), hodograph_low, hodograph_high, mask, color=color, alpha=0.5)
+        ax.fill_between(np.arange(len(hodograph_times)), hodograph_low, hodograph_high, mask, color=color, alpha=0.5, label=label)
 
     def get_velocity_time_by_coords(self, coords):
         return coords[0], coords[1]
@@ -122,8 +122,9 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
 
     def plot_hodograph(self, ax, hodograph_times):
         max_offset = self.click_time * self.click_vel * np.sqrt((1 + self.velocity_spectrum.max_stretch_factor)**2 - 1) / 1000
-        super().plot_hodograph(ax, hodograph_times, "tab:blue", self.gather.offsets < max_offset)
-        super().plot_hodograph(ax, hodograph_times, "tab:red", self.gather.offsets > max_offset)
+        super().plot_hodograph(ax, hodograph_times, "tab:blue", self.gather.offsets < max_offset, 'non-stretch muted')
+        super().plot_hodograph(ax, hodograph_times, "tab:red", self.gather.offsets > max_offset, label='stretch muted')
+        ax.legend(loc='upper right', fontsize='small')
         
 
 class SlantStackPlot(VelocitySpectrumPlot):
