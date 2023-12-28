@@ -43,7 +43,7 @@ class Spectrum:
 
     @property
     def sample_interval(self):
-    """Sample interval of spectrum y_values. None if the axis is not uniform. """
+        """ Sample interval of spectrum y_values. None if the axis is not uniform. """
         dy = np.diff(self.y_values)
         if np.allclose(dy, dy[0]):
             return dy[0]
