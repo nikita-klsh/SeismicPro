@@ -421,8 +421,6 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         if not self.preserve_clicks_on_view_change:
             self.click_coords = None
             self.slice_coords = None
-        if not self.preserve_lims_on_view_change:
-            self.current_axes_lims = None
         self.redraw(preserve_lims=self.preserve_lims_on_view_change)
 
     def set_title(self, title=None):
@@ -447,7 +445,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         # Reset toolbar buttons history
         self.fig.canvas.toolbar.update()
 
-    def redraw(self, clear=True, preserve_lims=False):
+    def redraw(self, clear=True, preserve_lims=None):
         """Redraw the current view. Optionally clear the plot axes first."""
         if clear:
             self.clear()
@@ -456,8 +454,10 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
             self.plot_fn(ax=self.ax)  # pylint: disable=not-callable
             # Save the current axes limits to be able to restore them on a home button toggle
             self.home_axes_lims = (self.ax.get_xlim(), self.ax.get_ylim())
-            # Avoid restoring outdated `current_axes_lims` lims if `redraw` is called without (self)preserve_lims=True
-            self.current_axes_lims = None if not (self.preserve_lims or preserve_lims) else self.current_axes_lims
+            if preserve_lims is None:
+                preserve_lims = self.preserve_lims
+            if not preserve_lims:
+                self.current_axes_lims = None
             if self.current_axes_lims is not None:
                 self.ax.set_xlim(self.current_axes_lims[0])
                 self.ax.set_ylim(self.current_axes_lims[1])
@@ -663,8 +663,6 @@ class DropdownOptionPlot(InteractivePlot):
         self.next.disabled = self.current_option_ix == (len(self.options) - 1)
 
         if redraw:
-            if not self.preserve_lims_on_view_change:
-                self.current_axes_lims = None
             self.redraw(preserve_lims=self.preserve_lims_on_view_change)
 
     def reverse_options(self, event):
