@@ -123,7 +123,6 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         # Preserve limits-related attributes
         self.preserve_lims = preserve_lims
         self.preserve_lims_on_view_change = preserve_lims_on_view_change
-        self.preserve_view_lims = False
         self.current_axes_lims = None
         self.home_axes_lims = None
         self._axes_callbacks_oids = []
@@ -418,16 +417,13 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         if view < 0 or view >= self.n_views:
             raise ValueError("Unknown view")
         self.unclick()
+        self.current_view = view
         if not self.preserve_clicks_on_view_change:
             self.click_coords = None
             self.slice_coords = None
         if not self.preserve_lims_on_view_change:
             self.current_axes_lims = None
-        else:
-            self.preserve_view_lims = True
-        self.current_view = view
-        self.redraw()
-        self.preserve_view_lims = False
+        self.redraw(preserve_lims=self.preserve_lims_on_view_change)
 
     def set_title(self, title=None):
         """Update the plot title. If `title` is not given, the default title of the current view is used."""
@@ -451,7 +447,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         # Reset toolbar buttons history
         self.fig.canvas.toolbar.update()
 
-    def redraw(self, clear=True):
+    def redraw(self, clear=True, preserve_lims=False):
         """Redraw the current view. Optionally clear the plot axes first."""
         if clear:
             self.clear()
@@ -460,7 +456,9 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
             self.plot_fn(ax=self.ax)  # pylint: disable=not-callable
             # Save the current axes limits to be able to restore them on a home button toggle
             self.home_axes_lims = (self.ax.get_xlim(), self.ax.get_ylim())
-            if (self.preserve_lims or self.preserve_view_lims) and self.current_axes_lims is not None:
+            # Avoid restoring outdated `current_axes_lims` lims if `redraw` is called without (self)preserve_lims=True
+            self.current_axes_lims = None if not (self.preserve_lims or preserve_lims) else self.current_axes_lims
+            if self.current_axes_lims is not None:
                 self.ax.set_xlim(self.current_axes_lims[0])
                 self.ax.set_ylim(self.current_axes_lims[1])
             self.set_axes_callbacks()
@@ -665,16 +663,9 @@ class DropdownOptionPlot(InteractivePlot):
         self.next.disabled = self.current_option_ix == (len(self.options) - 1)
 
         if redraw:
-            self.redraw()
-
-    def on_view_change(self, option_ix, options=None, redraw=True):
-        """Update plot limits and options on view change."""
-        if not self.preserve_lims_on_view_change:
-            self.current_axes_lims = None
-        else:
-            self.preserve_view_lims = True
-        self.update_state(option_ix=option_ix, options=options, redraw=redraw)
-        self.preserve_view_lims = False
+            if not self.preserve_lims_on_view_change:
+                self.current_axes_lims = None
+            self.redraw(preserve_lims=self.preserve_lims_on_view_change)
 
     def reverse_options(self, event):
         """Reverse options order. Keep the currently active option unchanged."""
@@ -684,17 +675,17 @@ class DropdownOptionPlot(InteractivePlot):
     def next_option(self, event):
         """Switch to the next option."""
         _ = event
-        self.on_view_change(min(self.current_option_ix + 1, len(self.options) - 1))
+        self.update_state(min(self.current_option_ix + 1, len(self.options) - 1))
 
     def prev_option(self, event):
         """Switch to the previous option."""
         _ = event
-        self.on_view_change(max(self.current_option_ix - 1, 0))
+        self.update_state(max(self.current_option_ix - 1, 0))
 
     def select_option(self, change):
         """Select an option."""
         _ = change
-        self.on_view_change(self.drop.index)
+        self.update_state(self.drop.index)
 
 
 class PairedPlot:
