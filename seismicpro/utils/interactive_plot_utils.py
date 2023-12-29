@@ -161,6 +161,12 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.home_button = widgets.Button(icon="home", tooltip="Reset original view", description=" ",
                                           layout=widgets.Layout(**BUTTON_LAYOUT))
         self.home_button.on_click(self.on_home_toggle)
+        self.back_button = widgets.Button(icon="arrow-left", tooltip="Back to previous view", description=" ",
+                                          layout=widgets.Layout(**BUTTON_LAYOUT))
+        self.back_button.on_click(self.fig.canvas.toolbar.back)
+        self.forward_button = widgets.Button(icon="arrow-right", tooltip="Forward to next view", description=" ",
+                                             layout=widgets.Layout(**BUTTON_LAYOUT))
+        self.forward_button.on_click(self.fig.canvas.toolbar.forward)
         self.pan_button = widgets.ToggleButton(icon="arrows", tooltip="Move the plot",
                                                layout=widgets.Layout(**BUTTON_LAYOUT))
         self.pan_button.observe(self.on_pan_toggle, "value")
@@ -248,7 +254,8 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
     def construct_toolbar(self):
         """Construct a plot toolbar which contains the toolbar of the canvas and constructed buttons."""
         box_type = widgets.HBox if self.toolbar_position in {"top", "bottom"} else widgets.VBox
-        toolbar_buttons = [self.home_button, self.pan_button, self.zoom_button, self.save_button]
+        toolbar_buttons = [self.home_button, self.back_button, self.forward_button, self.pan_button, self.zoom_button,
+                           self.save_button]
         return box_type(self.construct_extra_buttons() + toolbar_buttons)
 
     def _connect_widgets(self, first, second, how):
