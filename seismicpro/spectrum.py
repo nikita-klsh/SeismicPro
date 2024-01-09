@@ -78,8 +78,9 @@ class Spectrum:
 
 
     @plotter(figsize=(10, 9))
-    def plot(self, vfunc=None, align_vfunc=True, plot_bounds=True, grid=False, colorbar=True, x_label=None, x_ticker=None, y_label=None, y_ticker=None,
-             title=None, clip_threshold_quantile=0.99, n_levels=10, ax=None,  interpolation=None, **kwargs):
+    def plot(self, vfunc=None, align_vfunc=True, plot_bounds=True, grid=False, colorbar=True, x_label=None,
+             x_ticker=None, y_label=None, y_ticker=None, title=None, clip_threshold_quantile=0.99, n_levels=10,
+             ax=None, interpolation=None, **kwargs):
         """Plot spectrum and, optionally, vertical functions on it.
 
         Parameters

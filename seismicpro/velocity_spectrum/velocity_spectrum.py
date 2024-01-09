@@ -593,6 +593,11 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         interpolate: bool, optional, defaults to True
             Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude at
             the nearest time sample is used.
+
+        Returns
+        -------
+        spectrum : ResidualVelocitySpectrum
+            Residual velocity spectrum instance.
         """
         half_win_size_samples = math.ceil((window_size / gather.sample_interval / 2))
 
@@ -724,7 +729,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
                                         VFUNC([0, self.samples[-1]], [acceptable_margin, acceptable_margin])]
 
         plot_kwargs = {"vfunc": stacking_velocity, "title": title, "half_win_size": self.half_win_size_samples or 10,
-                       "x_label": "Margin, %", "y_label": 'Time, ms', **kwargs} 
+                       "x_ticker": {"round_to": 2}, "x_label": "Margin", "y_label": 'Time, ms', **kwargs} 
 
         if not interactive:
             return super().plot(**plot_kwargs)
@@ -743,26 +748,42 @@ class SlantStack(BaseVelocitySpectrum):
     2. By passing the gather  to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_slant_stack` method (recommended way).
 
+    Parameters
+    ----------
+    slant_stack : 2d np.ndarray
+        An array with slant_stack values.
+    velocities : 1d np.ndarray
+        Velocities corresponding to the slant stack. Measured in meters/seconds.
+    times: 1d np.ndarray
+        Timestamps corresponding to the slant stack. Measured in miliseconds.
+    gather : Gather, optional, defaults to None
+        Seismic gather corresponding to the slant stack.
+    coords : Coordinates, optional, defaults to None
+        Spatial coordinates of the slant stack.
+
     Attributes
     ----------
     spectrum : 2d np.ndarray
-        An array with Slant Stack values.
+        An array with slant stack values.
     velocities : 1d np.ndarray
-        Range of velocity values for which Slant Stack was calculated. Measured in meters/seconds.
+        Velocities corresponding to the slant stack. Measured in meters/seconds.
     times: 1d np.ndarray
-        Range of timestamps for which Slant Stack was calculated. Measured in miliseconds.
+        Timestamps corresponding to the slant stack. Measured in miliseconds.
     gather : Gather or None
-        Seismic gather for which Slant Stack calculation was called.
+        Seismic gather corresponding to the slant stack.
     coords : Coordinates or None
-        Spatial coordinates of the Slant Stack.
+        Spatial coordinates of the slant stack.
     correction_type: 'LMO'
-        Gather correction method used for Slant Stack computation.
+        Gather correction method used for spectrum computation.
     """
     correction_type = 'LMO'
 
+    def __init__(self, slant_stack, velocities, times, coords=None, gather=None)
+        super().__init__(slant_stack, velocities, times, coords, gather)
+
     @classmethod
     def from_gather(cls, gather, velocities=None):
-        """Calculate Slant Stack from gather.
+        """Calculate Slant Stack transform from gather.
         
         The method for slant stack computation for a given time and velocity coincides with 
         the calculation of :func:`~VerticalVelocitySpectrum.from_gather` and looks as follows:
@@ -779,6 +800,11 @@ class SlantStack(BaseVelocitySpectrum):
         velocities : 1d np.ndarray, optional, defaults to None
             An array of stacking velocities to calculate the slant stack for. Measured in meters/seconds.
             If not provided, uniformly covers the range from 100 m/s to 2400 m/s with step 50 m/s.
+
+        Returns
+        -------
+        spectrum : SlantStack
+            SlantStack instance.
         """
         if velocities is None:
             velocities = np.arange(100, 2400, 50, dtype=np.float32)
