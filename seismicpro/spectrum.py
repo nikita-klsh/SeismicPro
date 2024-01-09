@@ -69,16 +69,16 @@ class Spectrum:
 
     @batch_method(target="t", copy_src=False)
     def scale_norm(self):
-        """ Scale the spectrum along the y axis. """
+        """ Scale the spectrum along the y axis by normalizing values to L2 norm. """
         l2_norm = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5
         self.spectrum = np.where(spectrum_max != 0, self.spectrum / l2_norm, 0)
         return self
 
 
     @plotter(figsize=(10, 9))
-    def plot(self, vfunc=None, align_vfunc=True, grid=False, colorbar=True, x_label=None, x_ticker=None, y_label=None, y_ticker=None,
+    def plot(self, vfunc=None, align_vfunc=True, plot_bounds=True, grid=False, colorbar=True, x_label=None, x_ticker=None, y_label=None, y_ticker=None,
              title=None, clip_threshold_quantile=0.99, n_levels=10, ax=None,  interpolation=None, **kwargs):
-        """Plot spectrum and, optionally, vfuncs on on it.
+        """Plot spectrum and, optionally, vertical functions on it.
 
         Parameters
         ----------
@@ -86,6 +86,8 @@ class Spectrum:
             VFUNCs to be plotted on the spectrum.
         align_vfunc: bool, optional, defaults to True
             Whether aligh (cut or extend) VFUNC y_axis to spectrum y_axis.
+        plot_bounds: bool, optional, defaults to True
+            Whether to plot vfunc bounds, if exist.
         grid : bool, optional, defaults to False
             Specifies whether to draw a grid on the plot.
         colorbar : bool or dict, optional, defaults to True
@@ -93,12 +95,12 @@ class Spectrum:
             If `dict`, defines extra keyword arguments for `matplotlib.figure.Figure.colorbar`.
         x_label : str, optional, defaults to None
             The title of the x-axis.
-        x_ticklabels : list of str, optional, defaults to None
-            An array of labels for the x-axis.
         x_ticker : dict, optional, defaults to None
             Parameters for ticks and ticklabels formatting for the x-axis; see `.utils.set_ticks` for more details.
-        y_ticklabels : list of str, optional, defaults to None
-            An array of labels for the y-axis.            
+        y_label : str, optional, defaults to None
+            The title of the y-axis.
+        y_ticker : dict, optional, defaults to None
+            Parameters for ticks and ticklabels formatting for the y-axis; see `.utils.set_ticks` for more details.         
         title : str, optional, defaults to None
             Plot title.
         clip_threshold_quantile : float, optional, defaults to 0.99
@@ -106,10 +108,10 @@ class Spectrum:
         n_levels : int, optional, defaults to 10
             The number of levels on the colorbar.
         ax : matplotlib.axes.Axes, optional, defaults to None
-            Axes of the figure to plot on.
+            Axes of the figure to plot on. If not given, it will be created automatically.
         interpolation: str, optional, defaults to None
-            Interpolation method either `ax.imshow` for case uniform spectrum
-            or `NonUniformImage` in case non-uniform spectrum.
+            Interpolation method for either `ax.imshow` call in case uniform spectrum
+            or `NonUniformImage` constructor in case non-uniform spectrum.
         kwargs : misc, optional
             Additional common keyword arguments for `x_ticker` and `y_tickers`.
         """
@@ -139,7 +141,7 @@ class Spectrum:
             for ix_vfunc in to_list(vfunc):
                 if align_vfunc:
                     ix_vfunc = ix_vfunc.copy().crop(self.y_values[0], self.y_values[-1])
-                ix_vfunc.plot(ax=ax, invert=False, plot_bounds=True, linewidth=2.5, marker="o", markevery=slice(1, -1), fill_area_color='white')
+                ix_vfunc.plot(ax=ax, invert=False, plot_bounds=plot_bounds, linewidth=2.5, marker="o", markevery=slice(1, -1), fill_area_color='white')
 
         if grid:
             ax.grid(c='k')

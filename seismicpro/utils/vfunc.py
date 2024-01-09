@@ -149,12 +149,28 @@ class VFUNC:
             raise ValueError("Inconsistent shapes of times and velocities")
 
     def copy(self):
-        """ Return a new copy of VFUNC. """
+        """ Return a copy of VFUNC. """
         return deepcopy(self)
 
     @plotter(figsize=(7,5))
     def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
-        """ Plot VFUNC on given axes. """
+        """ Plot VFUNC. 
+        
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional, defaults to None
+            An axis of the figure to plot on. If not given, it will be created automatically.
+        invert: bool, optional, defaluts to True
+            Whether to invert y axis of the axis.
+        plot_bounds: bool, optional, defaults to True
+            Whether to plot vfunc bounds, if their exist.
+        fill_area_color: bool, optional, defaluts to True
+            Fill area color.
+        alpha: float, optional, defaults to 0.2
+            Transparency of the bounds plot.
+        kwargs : misc, optional
+            Additional keyword arguments to the `ax.plot`.
+        """
         ax.plot(self.data_y, self.data_x, **kwargs)
         if self.bounds is not None and plot_bounds:
             ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
@@ -163,7 +179,20 @@ class VFUNC:
 
 
     def crop(self, start_x, end_x):
-        """ Either extend or cut x_values to provided range."""
+        """ Either extend or cut vfunc domain, e.g. x_values, to [start_x, end_x] range.
+        
+        Parameters
+        ---------
+        start_x: float
+            New starting x_value
+        end_x: float
+            New ending x_value
+        
+        Returns
+        -------
+        self : VFUNC
+            Cropped VFUNC inplace.
+        """
         valid_x_mask = (self.data_x > start_x) & (self.data_x < end_x)
         valid_x = np.sort(self.data_x[valid_x_mask])
         new_x = np.concatenate([[start_x], valid_x, [end_x]])

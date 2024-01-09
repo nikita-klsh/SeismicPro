@@ -131,7 +131,6 @@ def set_ticks(ax, axis, label='', major_labels=None, minor_labels=None, num=None
     ax_obj = getattr(ax, f"{axis}axis")
     ax_obj.set_label_text(label, **kwargs)
     ax_obj.set_ticklabels([], **kwargs, **rotation_kwargs)
-    # ax_obj.set_tick_params(**kwargs, **rotation_kwargs)
     ax_obj.set_major_locator(locator)
     ax_obj.set_major_formatter(formatter)
 

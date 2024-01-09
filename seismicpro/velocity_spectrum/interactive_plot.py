@@ -83,10 +83,10 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         self.plot_hodograph(ax, hodograph_times)
 
     def plot_hodograph(self, ax, hodograph_times, color="tab:blue", mask=None, label=None):
-        """Plot the hodograph. """
-        hodograph_low = np.clip(self.velocity_spectrum.times_to_indices(hodograph_times - self.half_win_size) - 0.5,
+        """Highlight the hodograph on the gather. """
+        hodograph_low = np.clip(self.gather.times_to_indices(hodograph_times - self.half_win_size) - 0.5,
                                 0, self.gather.n_times - 1)
-        hodograph_high = np.clip(self.velocity_spectrum.times_to_indices(hodograph_times + self.half_win_size) - 0.5,
+        hodograph_high = np.clip(self.gather.times_to_indices(hodograph_times + self.half_win_size) - 0.5,
                                 0, self.gather.n_times - 1)
         ax.fill_between(np.arange(len(hodograph_times)), hodograph_low, hodograph_high, mask, color=color, alpha=0.5, label=label)
 

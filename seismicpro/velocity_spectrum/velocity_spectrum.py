@@ -35,7 +35,7 @@ COHERENCY_FUNCS = {
 
 class BaseVelocitySpectrum(Spectrum, SamplesContainer):
     """Base class for velocity spectrum calculation. 
-    Implements general spectrum computation logic based on the seismic gather. 
+    Implements general computation logic based on the provided seismic gather.
     """
     def __init__(self, *args, gather=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -80,13 +80,13 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
             Time index in `times` array to start calculating velocity spectrum from. Measured in samples.
         t_max_ix : int
             Time index in `times` array to stop calculating velocity spectrum at. Measured in samples.
+        interpolate: bool, optional, defaults to True
+            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
+            at the nearest time sample is used.
         max_stretch_factor : float, defaults to np.inf
             Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO
             correction. The lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
             Reasonably good value is 0.65.
-        interpolate: bool, optional, defaults to True
-            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
-            at the nearest time sample is used.
         out : np.array, optional
             The buffer to store result in. If not provided, a new array is allocated.
 
@@ -125,7 +125,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
     @njit(nogil=True, fastmath=True, parallel=True)
     def _calc_spectrum_numba(spectrum_func, coherency_func, correction_type, gather_data, times, offsets, velocities, sample_interval,
                              delay, half_win_size_samples, interpolate, max_strecth_factor):
-        """Parallelized and njitted method for vertical velocity spectrum calculation.
+        """Parallelized and njitted method for velocity spectrum calculation.
 
         Parameters
         ----------
@@ -142,7 +142,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         Returns
         -------
         velocity_spectrum : 2d np.ndarray
-            Array with vertical velocity spectrum values.
+            Array with velocity spectrum values.
         """
         velocity_spectrum = np.empty((gather_data.shape[1], len(velocities)), dtype=np.float32)
         for j in prange(len(velocities)):  # pylint: disable=consider-using-enumerate
@@ -158,7 +158,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     r"""A class for vertical velocity spectrum calculation and processing.
 
     Velocity spectrum is a measure of hodograph coherency. The higher the values of velocity spectrum are, the more
-    coherent the signal is along a hyperbolic trajectory over the entire spread length of the gather.
+    coherent the signal is along a hyperbolic trajectory over the spread length of the gather.
 
     Velocity spectrum instance can be created
     1. Directly by passing spectrum values, times and velocities ranges to its `__init__` .
@@ -182,7 +182,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     times: 1d np.ndarray
         Range of timestamps for which vertical velocity spectrum was calculated. Measured in miliseconds.
     gather : Gather or None
-        Seismic gather for which velocity spectrum calculation was called.
+        Seismic gather for which vertical velocity spectrum was computed.
     coords : Coordinates or None
         Spatial coordinates of the spectrum.
 
@@ -199,7 +199,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     coords : Coordinates or None
         Spatial coordinates of the spectrum.
     stacking_velocity : StackingVelocity or None
-        Stacking velocity around which vertical velocity spectrum is calculated.
+        Stacking velocity around which vertical velocity spectrum was calculated.
     half_win_size_samples : int or None
         Half of the temporal window size for smoothing the vertical velocity spectrum. Measured in samples.
     coherency_func : callable or None
@@ -229,7 +229,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     @classmethod
     def from_gather(cls, gather, velocities=None, stacking_velocity=None, relative_margin=0.2, velocity_step=50,
                     window_size=50, mode='semblance', max_stretch_factor=np.inf, interpolate=True):
-        r""" Vertical Velocity Spectrum computation from gather.
+        r""" Calculate Vertical Velocity Spectrum from gather.
 
         The velocity spectrum is computed by:
         :math:`VS(k, v) = \frac{\sum^{k+N/2}_{i=k-N/2} numerator(i, v)}
@@ -280,7 +280,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         Parameters
         ----------
         gather : Gather
-            Seismic gather to calculate velocity spectrum for.
+            Seismic gather to calculate vertical velocity spectrum for.
         velocities : 1d np.ndarray, optional, defaults to None
             An array of stacking velocities to calculate the velocity spectrum for. Measured in meters/seconds. If not
             provided, `stacking_velocity` is evaluated for gather times to estimate the velocity range being examined.
@@ -368,16 +368,35 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
 
 
     @plotter(figsize=(10, 9), args_to_unpack="stacking_velocity")
-    def plot(self, stacking_velocity=None, *, interactive=False, plot_bounds=True, title=None, grid=False, colorbar=True, 
-             x_ticker=None, y_ticker=None, **kwargs):
+    def plot(self, stacking_velocity=None, *, interactive=False, title=None, **kwargs):
+        """Plot vertical velocity spectrum.
+
+        Parameters
+        ----------
+        stacking_velocity : StackingVelocity or str, optional
+            Stacking velocity to plot if given. If its times are sampled less than once every 50 ms, each point will be
+            highlighted with a circle.
+            May be `str` if plotted in a pipeline: in this case it defines a component with stacking velocities to use.
+        interactive : bool, optional, defaults to `False`
+            Whether to plot velocity spectrum in interactive mode. This mode also plots the gather used to calculate
+            the velocity spectrum. Clicking on velocity spectrum highlights the corresponding hodograph on the gather
+            plot and allows performing NMO correction of the gather with the selected velocity.
+            Interactive plotting must be performed in a JupyterLab environment with the `%matplotlib widget`
+            magic executed and `ipympl` and `ipywidgets` libraries installed.
+        title : str, optional
+            Plot title. If not provided, equals to stacked lines "Vertical Velocity Spectrum" and coherency func name.
+        gather_plot_kwargs : dict, optional, only for interactive mode
+            Additional arguments to pass to `Gather.plot`.
+        kwargs : misc, optional
+            Additional common keyword arguments for `Spectrum.plot`.
+        """
         if title is None:
             title = f"Vertical Velocity Spectrum \n Coherency func: {self.coherency_func.__name__}"
         if isinstance(stacking_velocity, StackingVelocityField):
             stacking_velocity = stacking_velocity(self.coords)
-        plot_kwargs = {"vfunc": stacking_velocity, "plot_bounds": plot_bounds, "title": title,
-                      "half_win_size": self.half_win_size_samples or 10,
-                      "x_label": "Velocity, m/s", "y_label": 'Time, ms', "grid": grid, "colorbar": colorbar,
-                      "x_ticker": x_ticker, "y_ticker": y_ticker, **kwargs} 
+
+        plot_kwargs = {"vfunc": stacking_velocity, "title": title, "half_win_size": self.half_win_size_samples or 10,
+                      "x_label": "Velocity, m/s", "y_label": 'Time, ms',  **kwargs} 
 
         if not interactive:
             return super().plot(**plot_kwargs)
@@ -441,7 +460,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     Residual velocity spectrum is a hodograph coherency measure for a CDP gather along picked stacking velocity. 
 
     Residual Velocity Spectrum instance can be created
-    1. Directly by passing spectrum values, times and margins ranges to its `__init__` .
+    1. Directly by passing spectrum values, times and margins to its `__init__`.
     2. By passing the gather and stacking velocity (and optional parameters such as relative_margin) 
        to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_residual_velocity_spectrum` method (recommended way).
@@ -462,27 +481,26 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     Parameters
     ----------
     spectrum : 2d np.ndarray
-        An array with куышвгфд velocity spectrum values.
+        An array with residual velocity spectrum values.
     margins : 1d np.ndarray
-        An array of velocity margins the spectrum is calculated for.
+        An array of velocity margins for which residual velocity spectrum was calculated. Measuread as portions.
     times: 1d np.ndarray
-        Range of timestamps for which vertical velocity spectrum was calculated. Measured in miliseconds.
+        Range of timestamps for which residual velocity spectrum was calculated. Measured in miliseconds.
     gather : Gather or None
         Seismic gather for which velocity spectrum calculation was called.
     coords : Coordinates or None
         Spatial coordinates of the spectrum.
 
-
     Attributes
     ----------
     spectrum : 2d np.ndarray
-        An array with calculated residual vertical velocity spectrum values.
+        An array with  residual vertical velocity spectrum values.
     margins : 1d np.ndarray
-        An array of velocity margins the spectrum was calculated for.
+        An array of spectrum's velocity margins.
     times: 1d np.ndarray
-        Range of timestamps for which vertical velocity spectrum was calculated. Measured in miliseconds.
+        Range of spectrum's timestamps. Measured in miliseconds.
     gather : Gather
-        Seismic gather for which residual velocity spectrum calculation was called.
+        Seismic gather to which residual velocity spectrum correspond.
     stacking_velocity : StackingVelocity
         Stacking velocity around which residual velocity spectrum was calculated.
     margin_step : float
@@ -501,7 +519,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     def __init__(self, spectrum, margins, times, gather=None, coords=None):
         super().__init__(spectrum, margins, times, gather=gather, coords=coords)
     
-        # Set attributes relative to instance created `from_gather `.
+        # Set attributes relative to instance created `from_gather`.
         self.stacking_velocity = None
         self.coherency_func = None
         self.half_win_size_samples = None
@@ -509,7 +527,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
     @property
     def margins(self):
-        return self.y_values
+        return self.x_values
 
     @property
     def n_margins(self):
@@ -520,7 +538,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     @classmethod
     def from_gather(cls, gather, stacking_velocity, relative_margin=0.2, velocity_step=25, window_size=50,
                     mode='semblance', max_stretch_factor=np.inf, interpolate=True):
-        """ The  method for residual spectrum computation for a given time and velocity completely coincides with 
+        """ The method for residual spectrum computation for a given time and velocity completely coincides with 
         the calculation of :func:`~VerticalVelocitySpectrum.from_gather`, however, residual velocity spectrum 
         is computed in a small area around givenstacking velocity, thus allowing for additional optimizations.
 
@@ -539,7 +557,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         gather : Gather
             Seismic gather to calculate residual velocity spectrum for.
         stacking_velocity : StackingVelocity or StackingVelocityField
-            Stacking velocity around which residual velocity spectrum is calculated. `StackingVelocity` instance is used
+            Stacking velocity around which residual velocity spectrum to calculate. `StackingVelocity` instance is used
             directly. If `StackingVelocityField` instance is passed, a `StackingVelocity` corresponding to gather
             coordinates is fetched from it.
         relative_margin : float, optional, defaults to 0.2
@@ -665,8 +683,30 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
 
     @plotter(figsize=(10, 9))
-    def plot(self, *, acceptable_margin=None, title=None, interactive=False, colorbar=True, grid=False,
-             x_ticker=None, y_ticker=None, **kwargs):
+    def plot(self, *, acceptable_margin=None, title=None, interactive=False, **kwargs):
+        """Plot residual vertical velocity spectrum. The plot always has a vertical line in the middle, representing
+        the stacking velocity it was calculated for.
+
+        Parameters
+        ----------
+        acceptable_margin : float, optional
+            Defines an area around central stacking velocity that will be highlighted on the spectrum plot as
+            `stacking_velocity(t)` * (1 +- `acceptable_margin`) for each time `t`. May be used for visual quality
+            control of stacking velocity picking by setting this value low enough and checking that local maximas of
+            velocity spectrum corresponding to primaries lie inside the highlighted area.
+        title : str, optional
+            Plot title. If not provided, equals to stacked lines "Residual Velocity Spectrum" and coherency func name.
+        interactive : bool, optional, defaults to `False`
+            Whether to plot residual velocity spectrum in interactive mode. This mode also plots the gather used to
+            calculate the residual velocity spectrum. Clicking on residual velocity spectrum highlights the
+            corresponding hodograph on the gather plot and allows performing NMO correction of the gather with the
+            selected velocity. Interactive plotting must be performed in a JupyterLab environment with the
+            `%matplotlib widget` magic executed and `ipympl` and `ipywidgets` libraries installed.
+        gather_plot_kwargs : dict, optional, only for interactive mode
+            Additional arguments to pass to `Gather.plot`.
+        kwargs : misc, optional
+            Additional common keyword arguments for `Spectrum.plot`.
+        """
         if title is None:
             title = f"Residual Velocity Spectrum \n Coherency func: {self.coherency_func.__name__}"
         stacking_velocity = VFUNC(self.stacking_velocity.times, [0] * len(self.stacking_velocity.times))
@@ -685,11 +725,54 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
 
 class SlantStack(BaseVelocitySpectrum):
-    
+    """A class for Slant Stack calculation.
+
+    Slant Stacking is a procedure of a plane-wave decomposition of a seismic gather.
+    It can be achieved by applying linear moveout and summing amplitudes over the offset axis.
+    Note that Slant Stack exist in time-velocity domain, not in conventional time-slowness.
+
+    Slant Stack instance can be created:
+    1. Directly by passing Slant Stack values, times and velocities to its `__init__`.
+    2. By passing the gather  to `from_gather` constructor.
+    3. By calling :func:`~Gather.calculate_slant_stack` method (recommended way).
+
+    Attributes
+    ----------
+    spectrum : 2d np.ndarray
+        An array with Slant Stack values.
+    velocities : 1d np.ndarray
+        Range of velocity values for which Slant Stack was calculated. Measured in meters/seconds.
+    times: 1d np.ndarray
+        Range of timestamps for which Slant Stack was calculated. Measured in miliseconds.
+    gather : Gather or None
+        Seismic gather for which Slant Stack calculation was called.
+    coords : Coordinates or None
+        Spatial coordinates of the Slant Stack.
+    correction_type: 'LMO'
+        Gather correction method used for Slant Stack computation.
+    """
     correction_type = 'LMO'
 
     @classmethod
     def from_gather(cls, gather, velocities=None):
+        """Calculate Slant Stack from gather.
+        
+        The method for slant stack computation for a given time and velocity coincides with 
+        the calculation of :func:`~VerticalVelocitySpectrum.from_gather` and looks as follows:
+
+        For each velocity from the given velocity range:
+            1. Calculate LMO-corrected gather.
+            2. Estimate numerator and denominator for `stacked_amplitude_sum` coherency measure for each timestamp.
+            3. Get the slant stack value as a ratio of numerator and denominator.
+        
+        Parameters
+        ----------
+        gather : Gather
+            Seismic gather to calculate slant stack for.
+        velocities : 1d np.ndarray, optional, defaults to None
+            An array of stacking velocities to calculate the slant stack for. Measured in meters/seconds.
+            If not provided, uniformly covers the range from 100 m/s to 2400 m/s with step 50 m/s.
+        """
         if velocities is None:
             velocities = np.arange(100, 2400, 50, dtype=np.float32)
         else:
@@ -709,12 +792,28 @@ class SlantStack(BaseVelocitySpectrum):
     
 
     @plotter(figsize=(10, 9))
-    def plot(self, interactive=False, title=None, grid=False, colorbar=True, x_ticker=None, y_ticker=None, **kwargs):
+    def plot(self, interactive=False, title=None, **kwargs):
+        """Plot Slant Stack.
+
+        Parameters
+        ----------
+        interactive : bool, optional, defaults to `False`
+            Whether to plot slant stack in interactive mode. This mode also plots the gather used to calculate
+            the slant stack. Clicking on slant stack highlights the corresponding hodograph on the gather
+            plot and allows performing LMO correction of the gather with the selected velocity.
+            Interactive plotting must be performed in a JupyterLab environment with the `%matplotlib widget`
+            magic executed and `ipympl` and `ipywidgets` libraries installed.
+        title : str, optional
+            Plot title. If not provided, equals to 'Slant Stack'.
+        gather_plot_kwargs : dict, optional, only for interactive mode
+            Additional arguments to pass to `Gather.plot`.
+        kwargs : misc, optional
+            Additional common keyword arguments for `Spectrum.plot`.
+        """
         if title is None:
             title = "Slant Stack"
 
-        plot_kwargs = {"title": title, "x_label": "Velocity, m/s", "y_label": 'Time, ms', "grid": grid,
-                       "colorbar": colorbar, "x_ticker": x_ticker, "y_ticker": y_ticker, **kwargs} 
+        plot_kwargs = {"title": title, "x_label": "Velocity, m/s", "y_label": 'Time, ms', **kwargs} 
 
         if not interactive:
             return super().plot(**plot_kwargs)
