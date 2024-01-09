@@ -3,7 +3,6 @@
 from copy import deepcopy
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from .general_utils import to_list
 from .interpolation import interp1d
@@ -138,7 +137,7 @@ class VFUNC:
 
         if bounds is None:
             self.bounds = bounds
-        elif len(bounds) == 2 and all([isinstance(bound, VFUNC) for bound in bounds]):
+        elif len(bounds) == 2 and all(isinstance(bound, VFUNC) for bound in bounds):
             self.bounds = [bound.copy() for bound in bounds]
         else:
             raise ValueError("bounds must be either None or iterable with 2 VFUNCs")
@@ -173,7 +172,8 @@ class VFUNC:
         """
         ax.plot(self.data_y, self.data_x, **kwargs)
         if self.bounds is not None and plot_bounds:
-            ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
+            ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y,
+                             color=fill_area_color, alpha=alpha)
         if invert:
             ax.invert_yaxis()
 

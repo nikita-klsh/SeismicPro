@@ -42,32 +42,29 @@ class Spectrum:
         self.y_values = y_values
         self.coords = coords
 
-
     @property
     def sample_interval(self):
         """ Sample interval of spectrum y_values. None if the y axis is not uniform. """
         dy = np.diff(self.y_values)
         if np.allclose(dy, dy[0]):
             return dy[0]
-        else: 
-            return None
-
+        return None
 
     @property
     def is_y_axis_uniform(self):
+        """Whether y axis is uniform. """
         return self.sample_interval is not None
-
 
     @property
     def is_x_axis_uniform(self):
+        """Whether x axis is uniform. """
         dx = np.diff(self.x_values)
         return np.allclose(dx, dx[0])
 
-
     @property
     def are_axes_uniform(self):
+        """Whether both axes are uniform. """
         return self.is_x_axis_uniform and self.is_y_axis_uniform
-
 
     @batch_method(target="t", copy_src=False)
     def scale_norm(self):
@@ -76,8 +73,7 @@ class Spectrum:
         self.spectrum = np.where(l2_norm != 0, self.spectrum / l2_norm, 0)
         return self
 
-
-    @plotter(figsize=(10, 9))
+    @plotter(figsize=(10, 9)) # pylint: disable-next=too-many-arguments
     def plot(self, vfunc=None, align_vfunc=True, plot_bounds=True, grid=False, colorbar=True, x_label=None,
              x_ticker=None, y_label=None, y_ticker=None, title=None, clip_threshold_quantile=0.99, n_levels=10,
              ax=None, interpolation=None, **kwargs):
@@ -123,20 +119,22 @@ class Spectrum:
         (title, x_ticker, y_ticker), kwargs = set_text_formatting(title, x_ticker, y_ticker, **kwargs)
 
         cmap = plt.get_cmap('seismic')
-        level_values = np.linspace(np.quantile(self.spectrum, 1 - clip_threshold_quantile), np.quantile(self.spectrum, clip_threshold_quantile), n_levels)
+        level_values = np.linspace(np.quantile(self.spectrum, 1 - clip_threshold_quantile),
+                                   np.quantile(self.spectrum, clip_threshold_quantile), n_levels)
         norm = mcolors.BoundaryNorm(level_values, cmap.N, clip=True)
         extent=[self.x_values[0], self.x_values[-1], self.y_values[-1], self.y_values[0]]
 
         if self.are_axes_uniform:
-            img = ax.imshow(self.spectrum, norm=norm, cmap=cmap, extent=extent, aspect='auto', interpolation=interpolation)
+            img = ax.imshow(self.spectrum, norm=norm, cmap=cmap, extent=extent, aspect='auto',
+                            interpolation=interpolation)
         else:
             img = NonUniformImage(ax, norm=norm, cmap=cmap, extent=extent, interpolation=interpolation)
             img.set_data(self.x_values, self.y_values, self.spectrum)
             ax.add_image(img)
-        
+
         ax.set_xlim(self.x_values[0], self.x_values[-1])
         ax.set_ylim(self.y_values[-1], self.y_values[0])
-    
+
         add_colorbar(ax, img, colorbar, y_ticker=y_ticker)
         ax.set_title(**{"label": None, **title})
 
@@ -144,10 +142,11 @@ class Spectrum:
             for ix_vfunc in to_list(vfunc):
                 if align_vfunc:
                     ix_vfunc = ix_vfunc.copy().crop(self.y_values[0], self.y_values[-1])
-                ix_vfunc.plot(ax=ax, plot_bounds=plot_bounds, invert=False, linewidth=2.5, marker="o", markevery=slice(1, -1), fill_area_color='white')
+                ix_vfunc.plot(ax=ax, plot_bounds=plot_bounds, invert=False, linewidth=2.5,
+                              marker="o", markevery=slice(1, -1), fill_area_color='white')
 
         if grid:
             ax.grid(c='k')
 
         set_ticks(ax, "x", x_label, self.x_values, axes_has_units=True, **x_ticker)
-        set_ticks(ax, "y", "Time", self.y_values, axes_has_units=True, **y_ticker)
+        set_ticks(ax, "y", y_label, self.y_values, axes_has_units=True, **y_ticker)

@@ -5,8 +5,6 @@ import math
 
 import numpy as np
 from numba import njit, prange
-from matplotlib import colors as mcolors
-import matplotlib.pyplot as plt
 
 from .utils import coherency_funcs
 from .interactive_plot import VerticalVelocitySpectrumPlot, RedidualVelocitySpectrumPlot, SlantStackPlot
@@ -14,7 +12,7 @@ from ..spectrum import Spectrum
 from ..containers import SamplesContainer
 from ..decorators import batch_method, plotter
 from ..stacking_velocity import StackingVelocity, StackingVelocityField
-from ..utils import add_colorbar, set_ticks, set_text_formatting, get_first_defined, VFUNC
+from ..utils import get_first_defined, VFUNC
 from ..gather.utils.correction import apply_constant_velocity_nmo, apply_constant_velocity_lmo
 from ..const import DEFAULT_STACKING_VELOCITY
 
@@ -43,16 +41,18 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
 
     @property
     def velocities(self):
+        """Array of spectrum's velocity values. """
         return self.x_values
 
     @property
     def samples(self):
+        """Array of spectrum's timestamps. """
         return self.y_values
 
     @staticmethod
     @njit(nogil=True, fastmath=True, parallel=True)
-    def calc_single_velocity_spectrum(coherency_func, correction_type, gather_data, times, offsets, velocity, 
-                                      sample_interval, delay, half_win_size_samples, t_min_ix, t_max_ix, 
+    def calc_single_velocity_spectrum(coherency_func, correction_type, gather_data, times, offsets, velocity,
+                                      sample_interval, delay, half_win_size_samples, t_min_ix, t_max_ix,
                                       interpolate=True, max_strecth_factor=np.inf, out=None):
         """Calculate velocity spectrum for a given range of zero-offset traveltimes and constant velocity.
 
@@ -123,8 +123,8 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
 
     @staticmethod
     @njit(nogil=True, fastmath=True, parallel=True)
-    def _calc_spectrum_numba(spectrum_func, coherency_func, correction_type, gather_data, times, offsets, velocities, sample_interval,
-                             delay, half_win_size_samples, interpolate, max_strecth_factor):
+    def _calc_spectrum_numba(spectrum_func, coherency_func, correction_type, gather_data, times, offsets, velocities,
+                             sample_interval, delay, half_win_size_samples, interpolate, max_strecth_factor):
         """Parallelized and njitted method for velocity spectrum calculation.
 
         Parameters
@@ -146,10 +146,10 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         """
         velocity_spectrum = np.empty((gather_data.shape[1], len(velocities)), dtype=np.float32)
         for j in prange(len(velocities)):  # pylint: disable=consider-using-enumerate
-            spectrum_func(coherency_func=coherency_func, correction_type=correction_type, gather_data=gather_data, 
-                          times=times, offsets=offsets, velocity=velocities[j], sample_interval=sample_interval, 
-                          delay=delay, half_win_size_samples=half_win_size_samples, t_min_ix=0, 
-                          t_max_ix=gather_data.shape[1], interpolate=interpolate, 
+            spectrum_func(coherency_func=coherency_func, correction_type=correction_type, gather_data=gather_data,
+                          times=times, offsets=offsets, velocity=velocities[j], sample_interval=sample_interval,
+                          delay=delay, half_win_size_samples=half_win_size_samples, t_min_ix=0,
+                          t_max_ix=gather_data.shape[1], interpolate=interpolate,
                           max_strecth_factor=max_strecth_factor, out=velocity_spectrum[:, j])
         return velocity_spectrum
 
@@ -203,7 +203,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     relative_margin : float or None
         Relative margin for which velocity range obtained from `stacking_velocity` was additionally extended.
     coherency_func : callable or None
-        A function that estimates the coherency measure for a hodograph.
+        A function that estimates the hodograph's coherency measure.
     half_win_size_samples : int or None
         Half of the temporal window size for smoothing the velocity spectrum. Measured in samples.
     max_stretch_factor : float or np.inf
@@ -215,15 +215,14 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
 
     def __init__(self, spectrum, velocities, times, gather=None, coords=None):
         super().__init__(spectrum, velocities, times, gather=gather, coords=coords)
-    
+
         # Set attributes relative to instance created `from_gather `.
         self.stacking_velocity = None
         self.relative_margin = None
-    
         self.coherency_func = None
         self.half_win_size_samples = None
-        self.max_stretch_factor = np.inf
-    
+        self.max_stretch_factor = np.inf # np.inf refers to no strecth mute
+
     @property
     def n_velocities(self):
         """int: The number of velocities the spectrum was calculated for."""
@@ -262,8 +261,9 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
             numerator(i, v) = ((sum^{M-1}_{j=0} f_{j}(i, v))^2 - sum^{M-1}_{j=0} f_{j}(i, v)^2) / (M - 1)
             denominator(i, v) = sum^{M-1}_{j=0} f_{j}(i, v)^2
 
-        where f_{j}(i, v) is the amplitude value on the `j`-th trace being NMO-corrected for time index `i` and velocity
-        `v`. Thus the amplitude is taken for the time defined by :math:`t(i, v) = \sqrt{t_0^2 + \frac{l_j^2}{v^2}}`, where:
+        where f_{j}(i, v) is amplitude value on the `j`-th trace being NMO-corrected for time index `i` and velocity
+        `v`. Thus the amplitude is taken for the time defined by :math:`t(i, v) = \sqrt{t_0^2 + \frac{l_j^2}{v^2}}`,
+        where:
         :math:`t_0` - start time of the hyperbola associated with time index `i`,
         :math:`l_j` - offset of the `j`-th trace,
         :math:`v` - velocity value.
@@ -298,11 +298,11 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
             interval [`min_velocity`, `max_velocity`] is mapped to [(1 - `relative_margin`) * `min_velocity`,
             (1 + `relative_margin`) * `max_velocity`].
         velocity_step : float, optional, defaults to 50
-            A step between two adjacent velocities for which vertical velocity spectrum is calculated if `velocities` are
-            not passed. Measured in meters/seconds.
+            A step between two adjacent velocities for which vertical velocity spectrum is calculated if `velocities`
+            are not passed. Measured in meters/seconds.
         window_size : int, optional, defaults to 50
-            Temporal window size used for velocity spectrum calculation. The higher the `window_size` is, the smoother the
-            resulting velocity spectrum will be but to the detriment of small details. Measured in milliseconds.
+            Temporal window size used for velocity spectrum calculation. The higher the `window_size` is, the smoother
+            the resulting velocity spectrum will be but to the detriment of small details. Measured in milliseconds.
         mode: str, optional, defaults to 'semblance'
             The measure for estimating hodograph coherency.
             The available options are:
@@ -312,13 +312,13 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
                 `crosscorrelation` or `CC`,
                 `energy_normalized_crosscorrelation` or `ENCC`.
         max_stretch_factor : float, defaults to np.inf
-            Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO correction.
-            This mute is applied after NMO correction for each provided velocity and before coherency calculation. The
-            lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
+            Maximum allowable factor for the muter that attenuates the effect of waveform stretching after 
+            NMO correction. This mute is applied after NMO correction for each provided velocity and before coherency
+            calculation. The lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
             Reasonably good value is 0.65.
         interpolate: bool, optional, defaults to True
-            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude at
-            the nearest time sample is used.
+            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
+            at the nearest time sample is used.
 
         Returns
         -------
@@ -330,7 +330,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         coherency_func = COHERENCY_FUNCS.get(mode)
         if coherency_func is None:
             raise ValueError(f"Unknown mode {mode}, available modes are {COHERENCY_FUNCS.keys()}")
-    
+
         if stacking_velocity is None:
             stacking_velocity = DEFAULT_STACKING_VELOCITY
         if isinstance(stacking_velocity, StackingVelocityField):
@@ -348,10 +348,10 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
                   "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
                   "half_win_size_samples": half_win_size_samples, "interpolate": interpolate, 
                   "correction_type": cls.correction_type, "max_strecth_factor": max_stretch_factor}
-        
+
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
         spectrum = cls(velocity_spectrum, velocities, gather.times, coords=gather.coords, gather=gather.copy())
-    
+
         spectrum.stacking_velocity = stacking_velocity
         spectrum.relative_margin = relative_margin
         spectrum.coherency_func = coherency_func
@@ -385,7 +385,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
             a StackingVelocity corresponding to spectrum coordinates is fetched from it.
             If its times are sampled less than once every 50 ms, each point will be highlighted with a circle.
             May be `str` if plotted in a pipeline: in this case it defines a component with stacking velocities to use.
-        interactive : bool, optional, defaults to `False`
+        interactive : bool, optional, defaults to False
             Whether to plot velocity spectrum in interactive mode. This mode also plots the gather used to calculate
             the velocity spectrum. Clicking on velocity spectrum highlights the corresponding hodograph on the gather
             plot and allows performing NMO correction of the gather with the selected velocity.
@@ -409,7 +409,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         if not interactive:
             return super().plot(**plot_kwargs)
         return VerticalVelocitySpectrumPlot(self, **plot_kwargs).plot()
-    
+
 
     @batch_method(target="for", args_to_unpack="init", copy_src=False)
     def calculate_stacking_velocity(self, init=None, bounds=None, relative_margin=None, acceleration_bounds="auto",
@@ -525,24 +525,23 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
     def __init__(self, spectrum, margins, times, gather=None, coords=None):
         super().__init__(spectrum, margins, times, gather=gather, coords=coords)
-    
+
         # Set attributes relative to instance created `from_gather`.
         self.stacking_velocity = None
-    
         self.coherency_func = None
         self.half_win_size_samples = None
         self.max_stretch_factor = np.inf
 
     @property
     def margins(self):
+        """ Array of residual spectrum's velocity margins. """
         return self.x_values
 
     @property
     def n_margins(self):
         """int: The number of velocity margins the spectrum was calculated for."""
         return len(self.margins)
-    
-    
+
     @classmethod
     def from_gather(cls, gather, stacking_velocity, relative_margin=0.2, velocity_step=25, window_size=50,
                     mode='semblance', max_stretch_factor=np.inf, interpolate=True):
@@ -553,8 +552,8 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         The boundaries in which calculation is performed depend on time `t` and are given by:
         `stacking_velocity(t)` * (1 +- `relative_margin`).
 
-        Since the length of this velocity range varies for different timestamps, the residual velocity spectrum values are
-        interpolated to obtain a rectangular matrix of size (`n_times`, max(right_boundary - left_boundary)), where
+        Since the length of this velocity range varies for different timestamps, the residual velocity spectrum values
+        are interpolated to obtain a rectangular matrix of size (`n_times`, max(right_boundary - left_boundary)), where
         `left_boundary` and `right_boundary` are arrays of left and right boundaries for all timestamps respectively.
 
         Thus the residual velocity spectrum is a function of time and relative velocity margin. Zero margin line
@@ -575,8 +574,8 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
             A step between two adjacent velocities for which residual velocity spectrum is calculated. Measured in
             meters/seconds.
         window_size : int, optional, defaults to 50
-            Temporal window size used for velocity spectrum calculation. The higher the `window_size` is, the smoother the
-            resulting velocity spectrum will be but to the detriment of small details. Measured in milliseconds.
+            Temporal window size used for velocity spectrum calculation. The higher the `window_size` is, the smoother
+            the resulting velocity spectrum will be but to the detriment of small details. Measured in milliseconds.
         mode: str, optional, defaults to 'semblance'
             The measure for estimating hodograph coherency.
             The available options are:
@@ -586,9 +585,9 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
                 `crosscorrelation` or `CC`,
                 `energy_normalized_crosscorrelation` or `ENCC`.
         max_stretch_factor : float, defaults to np.inf
-            Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO correction.
-            This mute is applied after NMO correction for each provided velocity and before coherency calculation. The
-            lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
+            Maximum allowable factor for the muter that attenuates the effect of waveform stretching  after
+            NMO correction. This mute is applied after NMO correction for each provided velocity and before coherency
+            calculation. The lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
             Reasonably good value is 0.65.
         interpolate: bool, optional, defaults to True
             Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude at
@@ -616,11 +615,11 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
                   "half_win_size_samples": half_win_size_samples, "interpolate": interpolate, 
                   "correction_type": cls.correction_type, "max_strecth_factor": max_stretch_factor}
 
-        
+
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
-        margins, margin_step = np.linspace(-relative_margin, relative_margin, velocity_spectrum.shape[1], retstep=True)
+        margins = np.linspace(-relative_margin, relative_margin, velocity_spectrum.shape[1])
         spectrum = cls(velocity_spectrum, margins, gather.times, coords=gather.coords, gather=gather.copy())
-        
+
         spectrum.stacking_velocity = stacking_velocity.copy().crop(gather.times[0], gather.times[-1])
         spectrum.coherency_func = coherency_func
         spectrum.half_win_size_samples = half_win_size_samples
@@ -681,7 +680,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
             spectrum_func(coherency_func=coherency_func, gather_data=gather_data, times=times, offsets=offsets,
                           velocity=velocities[i] / 1000, sample_interval=sample_interval, delay=delay,
                           half_win_size_samples=half_win_size_samples, t_min_ix=t_min_ix, t_max_ix=t_max_ix+1,
-                          correction_type=correction_type, max_strecth_factor=max_strecth_factor, 
+                          correction_type=correction_type, max_strecth_factor=max_strecth_factor,
                           interpolate=interpolate, out=velocity_spectrum[t_min_ix : t_max_ix + 1, i])
 
         # Interpolate velocity spectrum to get a rectangular image
@@ -709,7 +708,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
             velocity spectrum corresponding to primaries lie inside the highlighted area.
         title : str, optional
             Plot title. If not provided, equals to stacked lines "Residual Velocity Spectrum" and coherency func name.
-        interactive : bool, optional, defaults to `False`
+        interactive : bool, optional, defaults to False
             Whether to plot residual velocity spectrum in interactive mode. This mode also plots the gather used to
             calculate the residual velocity spectrum. Clicking on residual velocity spectrum highlights the
             corresponding hodograph on the gather plot and allows performing NMO correction of the gather with the
@@ -778,7 +777,7 @@ class SlantStack(BaseVelocitySpectrum):
     """
     correction_type = 'LMO'
 
-    def __init__(self, slant_stack, velocities, times, coords=None, gather=None)
+    def __init__(self, slant_stack, velocities, times, coords=None, gather=None):
         super().__init__(slant_stack, velocities, times, coords, gather)
 
     @classmethod
@@ -813,16 +812,17 @@ class SlantStack(BaseVelocitySpectrum):
             velocities = np.asarray(velocities, dtype=np.float32)
         velocities_ms = velocities / 1000  # from m/s to m/ms
 
-        kwargs = {"spectrum_func": cls.calc_single_velocity_spectrum, "coherency_func": coherency_funcs.stacked_amplitude_sum,
+        kwargs = {"spectrum_func": cls.calc_single_velocity_spectrum,
+                  "coherency_func": coherency_funcs.stacked_amplitude_sum,
                   "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
                   "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
-                  "half_win_size_samples": 0, "interpolate": True,  "correction_type": cls.correction_type, 
+                  "half_win_size_samples": 0, "interpolate": True, "correction_type": cls.correction_type, 
                   "max_strecth_factor": np.inf}
 
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
         spectrum =  cls(velocity_spectrum, velocities, gather.times, gather.coords, gather=gather)
         return spectrum
-    
+
 
     @plotter(figsize=(10, 9))
     def plot(self, interactive=False, title=None, **kwargs):
@@ -830,7 +830,7 @@ class SlantStack(BaseVelocitySpectrum):
 
         Parameters
         ----------
-        interactive : bool, optional, defaults to `False`
+        interactive : bool, optional, defaults to False
             Whether to plot slant stack in interactive mode. This mode also plots the gather used to calculate
             the slant stack. Clicking on slant stack highlights the corresponding hodograph on the gather
             plot and allows performing LMO correction of the gather with the selected velocity.
@@ -846,7 +846,7 @@ class SlantStack(BaseVelocitySpectrum):
         if title is None:
             title = "Slant Stack"
 
-        plot_kwargs = {"title": title, "x_label": "Velocity, m/s", "y_label": 'Time, ms', **kwargs} 
+        plot_kwargs = {"title": title, "x_label": "Velocity, m/s", "y_label": 'Time, ms', **kwargs}
 
         if not interactive:
             return super().plot(**plot_kwargs)

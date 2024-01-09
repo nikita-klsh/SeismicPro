@@ -233,7 +233,7 @@ class BaseMetricMap:  # pylint: disable=too-many-instance-attributes
             clip_threshold = 0.1 if np.isclose(global_mean, 0) else 0.1 * abs(global_mean)
         return mcolors.CenteredNorm(global_mean, clip_threshold)
 
-    @plotter(figsize=(10, 7))
+    @plotter(figsize=(10, 7)) # pylint: disable-next=too-many-arguments
     def _plot(self, *, title=None, x_ticker=None, y_ticker=None, is_lower_better=None, vmin=None, vmax=None, cmap=None,
               colorbar=True, center_colorbar=True, clip_threshold_quantile=0.95, keep_aspect=False, ax=None, **kwargs):
         """Plot the metric map."""
