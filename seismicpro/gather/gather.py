@@ -892,7 +892,7 @@ class Gather(TraceContainer, SamplesContainer):
         Parameters
         ----------
         velocities : 1d np.ndarray, optional, defaults to None
-            An array of velocities to calculate slant stack for. Measured in meters/second.
+            An array of velocities to calculate slant stack for. Measured in meters/seconds.
             If not provided, uniformly covers the range from 100 m/s to 2400 m/s with step 50 m/s.
 
         Returns

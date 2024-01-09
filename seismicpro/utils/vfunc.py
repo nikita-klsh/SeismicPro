@@ -191,7 +191,7 @@ class VFUNC:
         Returns
         -------
         self : VFUNC
-            Cropped VFUNC inplace.
+            Cropped VFUNC.
         """
         valid_x_mask = (self.data_x > start_x) & (self.data_x < end_x)
         valid_x = np.sort(self.data_x[valid_x_mask])

@@ -61,7 +61,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
 
     @staticmethod
     def hodograph_func(t0, x, v):
-        """ Compute hodograph times for given t0, offsets and velocity. """
+        """Compute hodograph times for given t0, offsets and velocity. """
         raise NotImplementedError
 
     def get_hodograph_times(self, corrected):
@@ -110,10 +110,11 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
 
 
 class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
-    """ Interactive Vertical Velocity Spectrum plot. """
+    """Interactive Vertical Velocity Spectrum plot. """
     
     @staticmethod
     def hodograph_func(t0, x, v):
+        """Hyperbolic hodograph times computation. """
         return (t0 ** 2 + (x/v) ** 2) ** 0.5
 
     def get_gather(self, corrected=False):
@@ -126,7 +127,7 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
                           .apply_nmo(self.click_vel, max_stretch_factor=max_stretch_factor)
 
     def plot_hodograph(self, ax, hodograph_times):
-        """ Plot hodograph and highlight it's stretch and non-stretch zones """
+        """Plot hodograph and highlight it's stretch and non-stretch zones """
         max_offset = self.click_time * self.click_vel * np.sqrt((1 + self.velocity_spectrum.max_stretch_factor)**2 - 1) / 1000
         super().plot_hodograph(ax, hodograph_times, "tab:blue", self.gather.offsets < max_offset, 'non-stretch muted')
         super().plot_hodograph(ax, hodograph_times, "tab:red", self.gather.offsets > max_offset, 'stretch muted')
@@ -134,10 +135,11 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
         
 
 class SlantStackPlot(VelocitySpectrumPlot):
-    """ Interactive Slant Stack plot. """
+    """Interactive Slant Stack plot. """
     
     @staticmethod
     def hodograph_func(t0, x, v):
+        """Linear hodograph times computation. """
         return t0 + x/v
 
     def get_gather(self, corrected=False):
@@ -149,9 +151,10 @@ class SlantStackPlot(VelocitySpectrumPlot):
 
 
 class RedidualVelocitySpectrumPlot(VerticalVelocitySpectrumPlot):
-    """ Interactive Residual Velocity Spectrum plot. """
+    """Interactive Residual Velocity Spectrum plot. """
     
     def get_velocity_time_by_coords(self, coords):
+        """Cast (margin, time) to (velocity, time)."""
         click_margin, click_time = coords[0], coords[1]
         click_vel = self.velocity_spectrum.stacking_velocity(click_time) * (1 + click_margin)
         return click_vel, click_time

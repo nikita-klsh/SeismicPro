@@ -35,6 +35,8 @@ class Spectrum:
         Spatial coordinates of the spectrum.
     """
     def __init__(self, spectrum, x_values, y_values, coords=None):
+        if (len(y_values), len(x_values)) != spectrum.shape:
+            raise ValueError('Given x_values or y_values do not match spectrum shape.')
         self.spectrum = spectrum
         self.x_values = x_values
         self.y_values = y_values
@@ -43,7 +45,7 @@ class Spectrum:
 
     @property
     def sample_interval(self):
-        """ Sample interval of spectrum y_values. None if the axis is not uniform. """
+        """ Sample interval of spectrum y_values. None if the y axis is not uniform. """
         dy = np.diff(self.y_values)
         if np.allclose(dy, dy[0]):
             return dy[0]
@@ -71,7 +73,7 @@ class Spectrum:
     def scale_norm(self):
         """ Scale the spectrum along the y axis by normalizing values to L2 norm. """
         l2_norm = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5
-        self.spectrum = np.where(spectrum_max != 0, self.spectrum / l2_norm, 0)
+        self.spectrum = np.where(l2_norm != 0, self.spectrum / l2_norm, 0)
         return self
 
 
@@ -141,7 +143,7 @@ class Spectrum:
             for ix_vfunc in to_list(vfunc):
                 if align_vfunc:
                     ix_vfunc = ix_vfunc.copy().crop(self.y_values[0], self.y_values[-1])
-                ix_vfunc.plot(ax=ax, invert=False, plot_bounds=plot_bounds, linewidth=2.5, marker="o", markevery=slice(1, -1), fill_area_color='white')
+                ix_vfunc.plot(ax=ax, plot_bounds=plot_bounds, invert=False, linewidth=2.5, marker="o", markevery=slice(1, -1), fill_area_color='white')
 
         if grid:
             ax.grid(c='k')

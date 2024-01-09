@@ -86,7 +86,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         max_stretch_factor : float, defaults to np.inf
             Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO
             correction. The lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
-            Reasonably good value is 0.65.
+            Reasonably good value is 0.65. Do not have power in LMO correction.
         out : np.array, optional
             The buffer to store result in. If not provided, a new array is allocated.
 
@@ -155,13 +155,13 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
 
 
 class VerticalVelocitySpectrum(BaseVelocitySpectrum):
-    r"""A class for vertical velocity spectrum calculation and processing.
+    r"""A class for Vertical Velocity Spectrum calculation and processing.
 
-    Velocity spectrum is a measure of hodograph coherency. The higher the values of velocity spectrum are, the more
-    coherent the signal is along a hyperbolic trajectory over the spread length of the gather.
+    Vertical velocity spectrum is a measure of hodograph coherency. The higher the values of velocity spectrum are, 
+    the more coherent the signal is along a hyperbolic trajectory over the spread length of the gather.
 
-    Velocity spectrum instance can be created
-    1. Directly by passing spectrum values, times and velocities ranges to its `__init__` .
+    Velocity spectrum instance can be created:
+    1. Directly by passing spectrum values, times and velocities to `__init__` .
     2. By passing the gather (and optional parameters such as velocity range, window size, coherency measure 
        and a factor for stretch mute) to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_vertical_velocity_spectrum` method (recommended way).
@@ -178,36 +178,38 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     spectrum : 2d np.ndarray
         An array with vertical velocity spectrum values.
     velocities : 1d np.ndarray
-        Range of velocity values for which vertical velocity spectrum was calculated. Measured in meters/seconds.
+        Stacking velocity values corresponding to the velocity spectrum. Measured in meters/seconds.
     times: 1d np.ndarray
-        Range of timestamps for which vertical velocity spectrum was calculated. Measured in miliseconds.
-    gather : Gather or None
-        Seismic gather for which vertical velocity spectrum was computed.
-    coords : Coordinates or None
-        Spatial coordinates of the spectrum.
+        Timestamps corresponding to the velocity spectrum. Measured in miliseconds.
+    gather : Gather, optional, defaults to None
+        Seismic gather corresponding to the velocity spectrum.
+    coords : Coordinates, optional, defaults to None
+        Spatial coordinates of the velocity spectrum.
 
     Attributes
     ----------
     spectrum : 2d np.ndarray
-        An array with vertical velocity spectrum values.
+        An array with velocity spectrum values.
     velocities : 1d np.ndarray
-        Range of velocity values for which vertical velocity spectrum was calculated. Measured in meters/seconds.
+        Stacking velocity values corresponding to the velocity spectrum. Measured in meters/seconds.
     times: 1d np.ndarray
-        Range of timestamps for which vertical velocity spectrum was calculated. Measured in miliseconds.
+        Timestamps corresponding to the velocity spectrum. Measured in miliseconds.
     gather : Gather or None
-        Seismic gather for which velocity spectrum calculation was called.
+        Seismic gather corresponding to the velocity spectrum.
     coords : Coordinates or None
-        Spatial coordinates of the spectrum.
+        Spatial coordinates of the velocity spectrum.
     stacking_velocity : StackingVelocity or None
-        Stacking velocity around which vertical velocity spectrum was calculated.
-    half_win_size_samples : int or None
-        Half of the temporal window size for smoothing the vertical velocity spectrum. Measured in samples.
+        Stacking velocity around which velocity spectrum was calculated.
+    relative_margin : float or None
+        Relative margin for which velocity range obtained from `stacking_velocity` was additionally extended.
     coherency_func : callable or None
-        A function that estimates the chosen coherency measure for a hodograph.
+        A function that estimates the coherency measure for a hodograph.
+    half_win_size_samples : int or None
+        Half of the temporal window size for smoothing the velocity spectrum. Measured in samples.
     max_stretch_factor : float or np.inf
         Maximum allowable factor for stretch muter.
     correction_type: 'NMO'
-        Gather correction method used for spectrum computation.
+        Gather correction method used for velocity spectrum computation.
     """
     correction_type = 'NMO'
 
@@ -216,10 +218,11 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     
         # Set attributes relative to instance created `from_gather `.
         self.stacking_velocity = None
+        self.relative_margin = None
+    
         self.coherency_func = None
         self.half_win_size_samples = None
         self.max_stretch_factor = np.inf
-        self.relative_margin = None
     
     @property
     def n_velocities(self):
@@ -280,7 +283,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         Parameters
         ----------
         gather : Gather
-            Seismic gather to calculate vertical velocity spectrum for.
+            Seismic gather to calculate velocity spectrum for.
         velocities : 1d np.ndarray, optional, defaults to None
             An array of stacking velocities to calculate the velocity spectrum for. Measured in meters/seconds. If not
             provided, `stacking_velocity` is evaluated for gather times to estimate the velocity range being examined.
@@ -316,6 +319,11 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         interpolate: bool, optional, defaults to True
             Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude at
             the nearest time sample is used.
+
+        Returns
+        -------
+        spectrum : VerticalVelocitySpectrum
+            Vertical velocity spectrum instance.
         """
         half_win_size_samples = math.ceil((window_size / gather.sample_interval / 2))
 
@@ -346,7 +354,6 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     
         spectrum.stacking_velocity = stacking_velocity
         spectrum.relative_margin = relative_margin
-    
         spectrum.coherency_func = coherency_func
         spectrum.half_win_size_samples = half_win_size_samples
         spectrum.max_stretch_factor = max_stretch_factor
@@ -373,9 +380,10 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
 
         Parameters
         ----------
-        stacking_velocity : StackingVelocity or str, optional
-            Stacking velocity to plot if given. If its times are sampled less than once every 50 ms, each point will be
-            highlighted with a circle.
+        stacking_velocity : StackingVelocity, StackingVelocityField or str, optional
+            Stacking velocity to plot if given. If StackingVelocityField instance is passed, 
+            a StackingVelocity corresponding to spectrum coordinates is fetched from it.
+            If its times are sampled less than once every 50 ms, each point will be highlighted with a circle.
             May be `str` if plotted in a pipeline: in this case it defines a component with stacking velocities to use.
         interactive : bool, optional, defaults to `False`
             Whether to plot velocity spectrum in interactive mode. This mode also plots the gather used to calculate
@@ -456,11 +464,10 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
 
 class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     """A class for residual vertical velocity spectrum calculation and processing.
-
     Residual velocity spectrum is a hodograph coherency measure for a CDP gather along picked stacking velocity. 
 
-    Residual Velocity Spectrum instance can be created
-    1. Directly by passing spectrum values, times and margins to its `__init__`.
+    Residual Velocity Spectrum instance can be created:
+    1. Directly by passing spectrum values, times and margins to `__init__`.
     2. By passing the gather and stacking velocity (and optional parameters such as relative_margin) 
        to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_residual_velocity_spectrum` method (recommended way).
@@ -481,32 +488,32 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     Parameters
     ----------
     spectrum : 2d np.ndarray
-        An array with residual velocity spectrum values.
+        An array with residual vertical velocity spectrum values.
     margins : 1d np.ndarray
-        An array of velocity margins for which residual velocity spectrum was calculated. Measuread as portions.
+        Velocity margins corresponding to the residual velocity spectrum.
     times: 1d np.ndarray
-        Range of timestamps for which residual velocity spectrum was calculated. Measured in miliseconds.
+        Timestamps corresponding to the residual velocity spectrum. Measured in miliseconds.
     gather : Gather or None
-        Seismic gather for which velocity spectrum calculation was called.
+        Seismic gather corresponding to the residual velocity spectrum.
     coords : Coordinates or None
-        Spatial coordinates of the spectrum.
+        Spatial coordinates of the residual velocity spectrum.
 
     Attributes
     ----------
     spectrum : 2d np.ndarray
-        An array with  residual vertical velocity spectrum values.
+        An array with residual velocity spectrum values.
     margins : 1d np.ndarray
-        An array of spectrum's velocity margins.
+        An array of residul velocity spectrum margins.
     times: 1d np.ndarray
-        Range of spectrum's timestamps. Measured in miliseconds.
-    gather : Gather
-        Seismic gather to which residual velocity spectrum correspond.
+        An array of residul velocity spectrum timestamps. Measured in miliseconds.
+    gather : Gather or None
+        Seismic gather corresponding to the residual velocity spectrum.
+    coords : Coordinates or None
+        Spatial coordinates of the residual velocity spectrum.
     stacking_velocity : StackingVelocity
         Stacking velocity around which residual velocity spectrum was calculated.
-    margin_step : float
-        A step between each two adjacent margins.
-    relative_margin : float
-        Relative velocity margin, that determines the velocity range for velocity spectrum calculation for each time.
+    coherency_func : callable or None
+        A function that estimates the chosen coherency measure for a hodograph.
     half_win_size_samples : int
         Half of the temporal window size for smoothing the velocity spectrum. Measured in samples.
     max_stretch_factor: float
@@ -521,6 +528,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     
         # Set attributes relative to instance created `from_gather`.
         self.stacking_velocity = None
+    
         self.coherency_func = None
         self.half_win_size_samples = None
         self.max_stretch_factor = np.inf
@@ -606,7 +614,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
         margins, margin_step = np.linspace(-relative_margin, relative_margin, velocity_spectrum.shape[1], retstep=True)
-        spectrum = cls(velocity_spectrum, margins, gather.times, coords=gather.coords, gather=gather)
+        spectrum = cls(velocity_spectrum, margins, gather.times, coords=gather.coords, gather=gather.copy())
         
         spectrum.stacking_velocity = stacking_velocity.copy().crop(gather.times[0], gather.times[-1])
         spectrum.coherency_func = coherency_func
@@ -716,8 +724,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
                                         VFUNC([0, self.samples[-1]], [acceptable_margin, acceptable_margin])]
 
         plot_kwargs = {"vfunc": stacking_velocity, "title": title, "half_win_size": self.half_win_size_samples or 10,
-                       "x_label": "Margin, %", "y_label": 'Time, ms', "grid": grid, "colorbar": colorbar,
-                       "x_ticker": x_ticker, "y_ticker": y_ticker, **kwargs} 
+                       "x_label": "Margin, %", "y_label": 'Time, ms', **kwargs} 
 
         if not interactive:
             return super().plot(**plot_kwargs)
@@ -783,7 +790,7 @@ class SlantStack(BaseVelocitySpectrum):
         kwargs = {"spectrum_func": cls.calc_single_velocity_spectrum, "coherency_func": coherency_funcs.stacked_amplitude_sum,
                   "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
                   "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
-                  "half_win_size_samples": 0, "interpolate": True,  "correction_func": cls.correction_type, 
+                  "half_win_size_samples": 0, "interpolate": True,  "correction_type": cls.correction_type, 
                   "max_strecth_factor": np.inf}
 
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
