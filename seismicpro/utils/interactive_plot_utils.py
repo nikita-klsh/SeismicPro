@@ -720,7 +720,7 @@ class ToggleButtonsPlot(InteractivePlot):
         List of descriptions displayed on the toggle buttons. If None, numbers started from 0 to n_views will be used.
         If `icons` is not None, this parameter will be ommited.
     icons : list of str or None, optional
-        List of font-awesome icon name for each toggle button.
+        List of font-awesome icon names for each toggle button.
     buttons_position : {"top", "bottom", "left", "right"}, optional, defaults to "right"
         Toggle bottons position relative to the toolbar.
     click_fn : callable or list of callable, optional
@@ -931,7 +931,7 @@ class SlidingPlot(InteractivePlot):
     def set_slider(self, min=None, max=None, init=None):
         """Change slider limits and initial value."""
         current_min = self.slider.min
-        # Reset slider's min bound to avoid error when `max` < `current_min`
+        # Reset slider's min bound to prevent an error when `max` < `current_min`
         self.slider.min = -np.finfo(np.float64).max
         if max is not None:
             self.slider.max = max
