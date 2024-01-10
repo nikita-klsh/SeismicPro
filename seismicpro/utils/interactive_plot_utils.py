@@ -815,6 +815,80 @@ class ToggleButtonsPlot(InteractivePlot):
 
 
 class SlidingPlot(InteractivePlot):
+    """Construct an interactive plot with FloatSlider and optional click handling.
+
+    A FloatSlider is located between the header and canvas of the plot. The limits of the slider can be changed by
+    either with `__init__` or `self.set_slider`.
+
+    The plot may contain multiple views: one for each of the passed `plot_fn`. If more than one view is defined, an
+    extra button is created in the toolbar to iterate over them. The plot is interactive: it can handle click and slice
+    events, while each view may define its own processing logic.
+
+    Plotting must be performed in a JupyterLab environment with the `%matplotlib widget` magic executed and `ipympl`
+    and `ipywidgets` libraries installed.
+
+    Parameters
+    ----------
+    slider_min : int or float, optional, default to 0
+        Minimal position of the slider.
+    slider_max : int or float, optional, default to 1
+        Maximal position of the slider.
+    slider_init : int, float or None, optional
+        Initial position of the slider. If None, the initial position will be set to the midpoint between minimal and
+        maximal positions.
+    slide_fn : callable, optional
+        Handler is triggered when the FloatSlider value is changed.
+    reset_fn : callable, optional
+        Button handler to reset the FloatSlider to its initial position.
+    slider_kwargs : dict, optional
+        Additional arguments for the FloatSlider.
+    plot_fn : callable or list of callable, optional
+        One or more plotters each accepting a single keyword argument `ax`. If more than one plotter is given, an extra
+        button for view switching is displayed. If not given, an empty plot is created.
+    click_fn : callable or list of callable, optional
+        Click handlers for views defined by `plot_fn`. Each of them must accept a tuple with 2 elements defining
+        click coordinates. If a single `click_fn` is given, it is used for all views. If not given, click events are
+        not handled.
+    slice_fn : callable or list of callable, optional
+        Slice handlers for views defined by `plot_fn`. Slice is triggered by moving the mouse with the left button
+        held. Each handlers must accept two tuples with 2 elements defining coordinates of slice edges. If a single
+        `slice_fn` is given, it is used for all views. If not given, slice events are not handled.
+    unclick_fn : callable or list of callable, optional
+        Handlers that undo clicks and slices on views defined by `plot_fn`. Each of them is called without arguments.
+        If a single `unclick_fn` is given, it is used for all views. If not given, clicks and slices can not be undone.
+    marker_params : dict or list of dict, optional, defaults to {"marker": "+", "color": "black"}
+        Click marker parameters for views defined by `plot_fn`. Passed directly to `Axes.scatter`. If a single `dict`
+        is given, it is used for all views.
+    title : str or callable or list of str or callable, optional
+        Plot titles for views defined by `plot_fn`. If `callable`, it is called each time the title is being set (e.g.
+        on `redraw`) allowing for dynamic title generation. If not given, an empty title is created.
+    preserve_clicks_on_view_change : bool, optional, defaults to False
+        Whether to preserve click/slice markers and trigger the corresponding event on view change.
+    preserve_lims : bool, optional, defaults to False
+        Whether to preserve limits changes on each views on its redraw. If `self.plot_fn` is not given, limits won't be
+        preserved.
+    preserve_lims_on_view_change : bool, optional, defaults to False
+        Whether to preserve limits changes on view change.
+    toolbar_position : {"top", "bottom", "left", "right"}, optional, defaults to "left"
+        Toolbar position relative to the main axes.
+    figsize : tuple with 2 elements, optional, defaults to (4.5, 4.5)
+        Size of the created figure. Measured in inches.
+
+    Attributes
+    ----------
+    fig : matplotlib.figure.Figure
+        The created figure.
+    ax : matplotlib.axes.Axes
+        Axes of the figure to plot views on.
+    box : ipywidgets.widgets.widget_box.Box
+        Main container that stores figure canvas, plot title, created buttons and, optionally, a toolbar.
+    n_views : int
+        The number of plot views.
+    current_view : int
+        An index of the current plot view.
+    slider_init : int or float
+        Initial position of the slider.
+    """
     def __init__(self, *, slider_min=0, slider_max=1, slider_init=0, slide_fn=None, reset_fn=None, slider_kwargs=None,
                  **kwargs):
         self.slide_fn = slide_fn
