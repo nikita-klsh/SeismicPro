@@ -66,7 +66,7 @@ class Spectrum:
         """Whether both axes are uniform. """
         return self.is_x_axis_uniform and self.is_y_axis_uniform
 
-    @batch_method(target="t", copy_src=False)
+    @batch_method(target="for", copy_src=False)
     def scale_norm(self):
         """ Scale the spectrum along the y axis by normalizing values to L2 norm. """
         l2_norm = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5

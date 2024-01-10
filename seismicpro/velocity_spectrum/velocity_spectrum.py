@@ -777,8 +777,8 @@ class SlantStack(BaseVelocitySpectrum):
     """
     correction_type = 'LMO'
 
-    def __init__(self, slant_stack, velocities, times, coords=None, gather=None):
-        super().__init__(slant_stack, velocities, times, coords, gather)
+    def __init__(self, slant_stack, velocities, times, gather=None, coords=None):
+        super().__init__(slant_stack, velocities, times, gather=gather, coords=coords)
 
     @classmethod
     def from_gather(cls, gather, velocities=None):
@@ -820,7 +820,7 @@ class SlantStack(BaseVelocitySpectrum):
                   "max_strecth_factor": np.inf}
 
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
-        spectrum =  cls(velocity_spectrum, velocities, gather.times, gather.coords, gather=gather)
+        spectrum =  cls(velocity_spectrum, velocities, gather.times, coords=gather.coords, gather=gather.copy())
         return spectrum
 
 

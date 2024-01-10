@@ -885,7 +885,7 @@ class Gather(TraceContainer, SamplesContainer):
                                         window_size=window_size, mode=mode, max_stretch_factor=max_stretch_factor,
                                         interpolate=interpolate)
 
-    @batch_method(target="threads", copy_src=False)
+    @batch_method(target="for", copy_src=False)
     def calculate_slant_stack(self, velocities=None):
         """ Calculate slant stack transform of the gather.
 
