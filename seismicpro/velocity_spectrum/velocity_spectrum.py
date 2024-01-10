@@ -86,7 +86,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         max_stretch_factor : float, defaults to np.inf
             Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO
             correction. The lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
-            Reasonably good value is 0.65. Do not have power in LMO correction.
+            Reasonably good value is 0.65. Does not have power in case LMO correction.
         out : np.array, optional
             The buffer to store result in. If not provided, a new array is allocated.
 
@@ -189,7 +189,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     Attributes
     ----------
     spectrum : 2d np.ndarray
-        An array with velocity spectrum values.
+        An array with vertical velocity spectrum values.
     velocities : 1d np.ndarray
         Stacking velocity values corresponding to the velocity spectrum. Measured in meters/seconds.
     times: 1d np.ndarray
@@ -221,7 +221,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         self.relative_margin = None
         self.coherency_func = None
         self.half_win_size_samples = None
-        self.max_stretch_factor = np.inf # np.inf refers to no strecth mute
+        self.max_stretch_factor = np.inf
 
     @property
     def n_velocities(self):
@@ -743,7 +743,7 @@ class SlantStack(BaseVelocitySpectrum):
     Note that Slant Stack exist in time-velocity domain, not in conventional time-slowness.
 
     Slant Stack instance can be created:
-    1. Directly by passing Slant Stack values, times and velocities to its `__init__`.
+    1. Directly by passing Slant Stack values, times and velocities to `__init__`.
     2. By passing the gather  to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_slant_stack` method (recommended way).
 
