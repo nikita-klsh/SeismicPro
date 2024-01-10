@@ -917,12 +917,12 @@ class SlidingPlot(InteractivePlot):
     def on_slider_change(self, event):
         """Hangle slider value on its change."""
         if self.slide_fn is not None:
-            return self.slide_fn(event)
+            self.slide_fn(event)
 
     def on_reset(self, event):
         """Reset slider to its initial value."""
         if self.reset_fn is not None:
-            return self.reset_fn(event)
+            self.reset_fn(event)
 
     def construct_header(self):
         """Append the slider below the plot header."""
