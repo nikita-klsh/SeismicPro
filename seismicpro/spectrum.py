@@ -1,4 +1,4 @@
-"""Base class for the representation of seismic gather in different domains. """
+"""Implements Spectrum class for the representation of seismic gather in different domains"""
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
