@@ -151,7 +151,7 @@ class VFUNC:
         """ Return a copy of VFUNC. """
         return deepcopy(self)
 
-    @plotter(figsize=(7,5))
+    @plotter(figsize=(7, 5))
     def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
         """ Plot VFUNC. 
         

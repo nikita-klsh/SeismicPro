@@ -209,7 +209,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     max_stretch_factor : float or np.inf
         Maximum allowable factor for stretch muter.
     correction_type: 'NMO'
-        Gather correction method used for velocity spectrum computation.
+        Gather moveout correction method used for velocity spectrum computation.
     """
     correction_type = 'NMO'
 
@@ -750,7 +750,7 @@ class SlantStack(BaseVelocitySpectrum):
     Parameters
     ----------
     slant_stack : 2d np.ndarray
-        An array with slant_stack values.
+        An array with slant stack values.
     velocities : 1d np.ndarray
         Velocities corresponding to the slant stack. Measured in meters/seconds.
     times: 1d np.ndarray
@@ -820,7 +820,7 @@ class SlantStack(BaseVelocitySpectrum):
                   "max_strecth_factor": np.inf}
 
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
-        spectrum =  cls(velocity_spectrum, velocities, gather.times, coords=gather.coords, gather=gather.copy())
+        spectrum = cls(velocity_spectrum, velocities, gather.times, coords=gather.coords, gather=gather.copy())
         return spectrum
 
 
