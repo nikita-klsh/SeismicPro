@@ -408,7 +408,6 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
             return super().plot(**plot_kwargs)
         return VerticalVelocitySpectrumPlot(self, **plot_kwargs).plot()
 
-
     @batch_method(target="for", args_to_unpack="init", copy_src=False)
     def calculate_stacking_velocity(self, init=None, bounds=None, relative_margin=None, acceleration_bounds="auto",
                                     times_step=100, max_offset=5000, hodograph_correction_step=25, max_n_skips=2):
@@ -626,7 +625,6 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         spectrum.max_stretch_factor = max_stretch_factor
         return spectrum
 
-
     @staticmethod
     @njit(nogil=True, fastmath=True, parallel=True)
     def _calc_spectrum_numba(spectrum_func, coherency_func, gather_data, times, offsets, stacking_velocities,
@@ -692,7 +690,6 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
             target_velocities = np.linspace(left_bound[i], right_bound[i], residual_velocity_spectrum_len)
             residual_velocity_spectrum[i] = np.interp(target_velocities, cropped_velocities, cropped_spectrum)
         return residual_velocity_spectrum
-
 
     @plotter(figsize=(10, 9))
     def plot(self, *, acceptable_margin=None, title=None, interactive=False, **kwargs):
@@ -822,7 +819,6 @@ class SlantStack(BaseVelocitySpectrum):
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
         spectrum = cls(velocity_spectrum, velocities, gather.times, coords=gather.coords, gather=gather.copy())
         return spectrum
-
 
     @plotter(figsize=(10, 9))
     def plot(self, interactive=False, title=None, **kwargs):

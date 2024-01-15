@@ -177,7 +177,6 @@ class VFUNC:
         if invert:
             ax.invert_yaxis()
 
-
     def crop(self, start_x, end_x):
         """ Either extend or cut vfunc domain, e.g. x_values, to [start_x, end_x] range.
         

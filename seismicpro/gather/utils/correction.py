@@ -75,6 +75,7 @@ def apply_constant_velocity_nmo(gather_data, offsets, sample_interval, delay, ti
                       interpolate=interpolate, fill_value=fill_value, out=corrected_gather_data[:, i])
     return corrected_gather_data
 
+
 @njit(nogil=True, parallel=True)
 def apply_constant_velocity_lmo(gather_data, offsets, sample_interval, delay, times, velocity,
                                 interpolate=True, fill_value=np.nan):
