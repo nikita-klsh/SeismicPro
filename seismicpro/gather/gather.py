@@ -899,7 +899,6 @@ class Gather(TraceContainer, SamplesContainer):
         -------
         slant_stack : SlantStack
             Calculated slant stack transform.
-
         """
         return SlantStack.from_gather(self, velocities=velocities)
 

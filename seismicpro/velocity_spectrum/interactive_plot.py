@@ -113,15 +113,15 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
 class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
     """Interactive Vertical Velocity Spectrum plot. """
 
-    @staticmethod
-    def hodograph_func(t0, x, v):
-        """Hyperbolic hodograph times computation. """
-        return (t0 ** 2 + (x/v) ** 2) ** 0.5
-
     def get_gather(self, corrected=False):
         """Get an optionally corrected gather."""
         if not corrected:
             return self.gather
+
+    @staticmethod
+    def hodograph_func(t0, x, v):
+        """Hyperbolic hodograph times computation. """
+        return (t0 ** 2 + (x/v) ** 2) ** 0.5
 
         max_stretch_factor = self.velocity_spectrum.max_stretch_factor
         return self.gather.copy(ignore=["headers", "data", "samples"]) \
@@ -139,17 +139,17 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
 class SlantStackPlot(VelocitySpectrumPlot):
     """Interactive Slant Stack plot. """
 
-    @staticmethod
-    def hodograph_func(t0, x, v):
-        """Linear hodograph times computation. """
-        return t0 + x/v
-
     def get_gather(self, corrected=False):
         """Get an optionally corrected gather."""
         if not corrected:
             return self.gather
         return self.gather.copy(ignore=["headers", "data", "samples"]) \
                           .apply_lmo(self.click_vel, 0)
+
+    @staticmethod
+    def hodograph_func(t0, x, v):
+        """Linear hodograph times computation. """
+        return t0 + x/v
 
 
 class RedidualVelocitySpectrumPlot(VerticalVelocitySpectrumPlot):

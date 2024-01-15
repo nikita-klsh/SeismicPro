@@ -107,7 +107,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
                                                     times[t_win_size_min_ix: t_win_size_max_ix + 1], velocity,
                                                     max_strecth_factor, interpolate)
         else:
-            raise ValueError
+            raise ValueError('correction_type should be either "NMO" or "LMO"')
 
         numerator, denominator = coherency_func(corrected_gather_data)
 
@@ -359,7 +359,6 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         spectrum.max_stretch_factor = max_stretch_factor
         return spectrum
 
-
     @staticmethod
     def get_velocity_range(times, stacking_velocity, relative_margin, velocity_step):
         """Return an array of stacking velocities for spectrum calculation:
@@ -372,7 +371,6 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         max_velocity = np.max(interpolated_velocities) * (1 + relative_margin)
         n_velocities = math.ceil((max_velocity - min_velocity) / velocity_step) + 1
         return min_velocity + velocity_step * np.arange(n_velocities)
-
 
     @plotter(figsize=(10, 9), args_to_unpack="stacking_velocity")
     def plot(self, stacking_velocity=None, *, interactive=False, title=None, **kwargs):
@@ -545,8 +543,10 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     @classmethod
     def from_gather(cls, gather, stacking_velocity, relative_margin=0.2, velocity_step=25, window_size=50,
                     mode='semblance', max_stretch_factor=np.inf, interpolate=True):
-        """ The method for residual spectrum computation for a given time and velocity completely coincides with 
-        the calculation of :func:`~VerticalVelocitySpectrum.from_gather`, however, residual velocity spectrum 
+        """ Calculate Residual Velocity Spectrum from gather.
+
+        The method for residual spectrum computation for a given time and velocity completely coincides with
+        the calculation of :func:`~VerticalVelocitySpectrum.from_gather`, however, residual velocity spectrum
         is computed in a small area around givenstacking velocity, thus allowing for additional optimizations.
 
         The boundaries in which calculation is performed depend on time `t` and are given by:
