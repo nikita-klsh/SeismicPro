@@ -61,7 +61,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
 
     @staticmethod
     def hodograph_func(t0, x, v):
-        """Compute hodograph times for given t0, offsets and velocity. """
+        """Compute hodograph times for given t0, offsets and velocity."""
         raise NotImplementedError
 
     def get_hodograph_times(self, corrected):
@@ -83,7 +83,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
         self.plot_hodograph(ax, hodograph_times)
 
     def plot_hodograph(self, ax, hodograph_times, color="tab:blue", mask=None, label=None):
-        """Highlight the hodograph on the gather. """
+        """Highlight the hodograph on the gather."""
         hodograph_low = np.clip(self.gather.times_to_indices(hodograph_times - self.half_win_size) - 0.5,
                                 0, self.gather.n_times - 1)
         hodograph_high = np.clip(self.gather.times_to_indices(hodograph_times + self.half_win_size) - 0.5,
@@ -92,7 +92,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
                         mask, color=color, alpha=0.5, label=label)
 
     def get_velocity_time_by_coords(self, coords):
-        """ Transform click coords to units. """
+        """ Transform click coords to units."""
         return coords[0], coords[1]
 
     def click(self, coords):
@@ -111,7 +111,7 @@ class VelocitySpectrumPlot(PairedPlot):  # pylint: disable=too-many-instance-att
 
 
 class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
-    """Interactive Vertical Velocity Spectrum plot. """
+    """Interactive Vertical Velocity Spectrum plot."""
 
     def get_gather(self, corrected=False):
         """Get an optionally corrected gather."""
@@ -120,7 +120,7 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
 
     @staticmethod
     def hodograph_func(t0, x, v):
-        """Hyperbolic hodograph times computation. """
+        """Hyperbolic hodograph times computation."""
         return (t0 ** 2 + (x/v) ** 2) ** 0.5
 
         max_stretch_factor = self.velocity_spectrum.max_stretch_factor
@@ -128,7 +128,7 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
                           .apply_nmo(self.click_vel, max_stretch_factor=max_stretch_factor)
 
     def plot_hodograph(self, ax, hodograph_times):
-        """Plot hodograph and highlight it's stretch and non-stretch zones """
+        """Plot hodograph and highlight it's stretch and non-stretch zones."""
         max_offset = self.click_time * self.click_vel * \
                      np.sqrt((1 + self.velocity_spectrum.max_stretch_factor)**2 - 1) / 1000
         super().plot_hodograph(ax, hodograph_times, "tab:blue", self.gather.offsets < max_offset, 'non-stretch muted')
@@ -138,7 +138,7 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
 
 
 class SlantStackPlot(VelocitySpectrumPlot):
-    """Interactive Slant Stack plot. """
+    """Interactive Slant Stack plot."""
 
     def get_gather(self, corrected=False):
         """Get an optionally corrected gather."""
@@ -149,12 +149,12 @@ class SlantStackPlot(VelocitySpectrumPlot):
 
     @staticmethod
     def hodograph_func(t0, x, v):
-        """Linear hodograph times computation. """
+        """Linear hodograph times computation."""
         return t0 + x/v
 
 
 class RedidualVelocitySpectrumPlot(VerticalVelocitySpectrumPlot):
-    """Interactive Residual Velocity Spectrum plot. """
+    """Interactive Residual Velocity Spectrum plot."""
 
     def get_velocity_time_by_coords(self, coords):
         """Cast (margin, time) to (velocity, time)."""

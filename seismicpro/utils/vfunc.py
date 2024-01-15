@@ -178,14 +178,14 @@ class VFUNC:
             ax.invert_yaxis()
 
     def crop(self, start_x, end_x):
-        """ Either extend or cut vfunc domain, e.g. x_values, to [start_x, end_x] range.
+        """ Either extend or cut vfunc domain, e.g. data_x, to [start_x, end_x] range.
         
         Parameters
         ---------
         start_x: float
-            New starting x_value
+            Starting value for data_x.
         end_x: float
-            New ending x_value
+            Ending x_value for data_x.
         
         Returns
         -------

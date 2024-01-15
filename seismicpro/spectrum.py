@@ -45,7 +45,7 @@ class Spectrum:
 
     @property
     def sample_interval(self):
-        """float: Sample interval of spectrum y_values. None if the y axis is not uniform. """
+        """float: Sample interval of spectrum y_values. None if the y axis is not uniform."""
         dy = np.diff(self.y_values)
         if np.allclose(dy, dy[0]):
             return dy[0]
@@ -53,23 +53,23 @@ class Spectrum:
 
     @property
     def is_y_axis_uniform(self):
-        """Whether y axis is uniform. """
+        """bool: Whether y axis is uniform."""
         return self.sample_interval is not None
 
     @property
     def is_x_axis_uniform(self):
-        """Whether x axis is uniform. """
+        """bool: Whether x axis is uniform."""
         dx = np.diff(self.x_values)
         return np.allclose(dx, dx[0])
 
     @property
     def are_axes_uniform(self):
-        """Whether both axes are uniform. """
+        """bool: Whether both axes are uniform."""
         return self.is_x_axis_uniform and self.is_y_axis_uniform
 
     @batch_method(target="for", copy_src=False)
     def scale_norm(self):
-        """ Scale the spectrum along the y axis by normalizing values to L2 norm. """
+        """ Scale the spectrum along the y axis by normalizing values to L2 norm."""
         l2_norm = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5
         self.spectrum = np.where(l2_norm != 0, self.spectrum / l2_norm, 0)
         return self

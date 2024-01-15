@@ -41,12 +41,12 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
 
     @property
     def velocities(self):
-        """Array of spectrum's velocity values. """
+        """np.ndarray: Array of spectrum's velocity values. Measured in meters/seconds."""
         return self.x_values
 
     @property
     def samples(self):
-        """Array of spectrum's timestamps. """
+        """np.ndarray: Array of spectrum's timestamps. Measured in milliseconds."""
         return self.y_values
 
     @staticmethod
@@ -531,7 +531,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
     @property
     def margins(self):
-        """ Array of residual spectrum's velocity margins. """
+        """ np.ndarray: Array of residual spectrum's velocity margins."""
         return self.x_values
 
     @property
