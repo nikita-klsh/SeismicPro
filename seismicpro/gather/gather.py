@@ -887,7 +887,7 @@ class Gather(TraceContainer, SamplesContainer):
 
     @batch_method(target="for", copy_src=False)
     def calculate_slant_stack(self, velocities=None):
-        """ Calculate slant stack transform of the gather.
+        """Calculate slant stack transform of the gather.
 
         Parameters
         ----------
