@@ -117,15 +117,14 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
         """Get an optionally corrected gather."""
         if not corrected:
             return self.gather
+        max_stretch_factor = self.velocity_spectrum.max_stretch_factor
+        return self.gather.copy(ignore=["headers", "data", "samples"]) \
+                          .apply_nmo(self.click_vel, max_stretch_factor=max_stretch_factor)
 
     @staticmethod
     def hodograph_func(t0, x, v):
         """Hyperbolic hodograph times computation."""
         return (t0 ** 2 + (x/v) ** 2) ** 0.5
-
-        max_stretch_factor = self.velocity_spectrum.max_stretch_factor
-        return self.gather.copy(ignore=["headers", "data", "samples"]) \
-                          .apply_nmo(self.click_vel, max_stretch_factor=max_stretch_factor)
 
     def plot_hodograph(self, ax, hodograph_times):
         """Plot hodograph and highlight it's stretch and non-stretch zones."""
