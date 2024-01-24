@@ -161,6 +161,52 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
        and a factor for stretch mute) to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_vertical_velocity_spectrum` method (recommended way).
 
+    To calculate velocity spectrum from gather:
+        :math:`VS(k, v) = \frac{\sum^{k+N/2}_{i=k-N/2} numerator(i, v)}
+                            {\sum^{k+N/2}_{i=k-N/2} denominator(i, v)},
+
+    where:
+     - VS - velocity spectrum value for starting time index `k` and velocity `v`,
+     - N - temporal window size,
+     - numerator(i, v) - numerator of the coherency measure,
+     - denominator(i, v) - denominator of the coherency measure.
+
+    For different coherency measures the numerator and denominator are calculated as follows:
+
+    - Stacked Amplitude, "S":
+        numerator(i, v) = abs(sum^{M-1}_{j=0} f_{j}(i, v))
+        denominator(i, v) = 1
+    - Normalized Stacked Amplitude, "NS":
+        numerator(i, v) = abs(sum^{M-1}_{j=0} f_{j}(i, v))
+        denominator(i, v) = sum^{M-1}_{j=0} abs(f_{j}(i, v))
+    - Semblance, "NE":
+        numerator(i, v) = (sum^{M-1}_{j=0} f_{j}(i, v))^2 / M
+        denominator(i, v) = sum^{M-1}_{j=0} f_{j}(i, v)^2
+    - Crosscorrelation, "CC":
+        numerator(i, v) = ((sum^{M-1}_{j=0} f_{j}(i, v))^2 - sum^{M-1}_{j=0} f_{j}(i, v)^2) / 2
+        denominator(i, v) = 1
+    - Energy Normalized Crosscorrelation, "ENCC":
+        numerator(i, v) = ((sum^{M-1}_{j=0} f_{j}(i, v))^2 - sum^{M-1}_{j=0} f_{j}(i, v)^2) / (M - 1)
+        denominator(i, v) = sum^{M-1}_{j=0} f_{j}(i, v)^2
+
+    where f_{j}(i, v) is amplitude value on the `j`-th trace being NMO-corrected for time index `i` and velocity
+    `v`. Thus the amplitude is taken for the time defined by :math:`t(i, v) = \sqrt{t_0^2 + \frac{l_j^2}{v^2}}`, where:
+    :math:`t_0` - start time of the hyperbola associated with time index `i`,
+    :math:`l_j` - offset of the `j`-th trace,
+    :math:`v` - velocity value.
+
+    See the COHERENCY_FUNCS for the full list of available coherency measures.
+
+    The resulting matrix :math:`VS(k, v)` has shape (n_times, n_velocities) and contains vertical velocity spectrum
+    values based on hyperbolas with each combination of the starting point :math:`k` and velocity :math:`v`.
+
+    The algorithm for velocity spectrum calculation looks as follows:
+    For each velocity from the given velocity range:
+        1. Calculate NMO-corrected gather.
+        2. Estimate numerator and denominator for given coherency measure for each timestamp.
+        3. Get the values of velocity spectrum as a ratio of rolling sums of numerator and denominator in temporal
+        windows of a given size.
+
     Examples
     --------
     Calculate velocity spectrum for 200 velocities from 2000 to 6000 m/s and a temporal window size of 16 ms:
@@ -232,53 +278,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     def from_gather(cls, gather, velocities=None, stacking_velocity=None, relative_margin=0.2, velocity_step=50,
                     window_size=50, mode='semblance', max_stretch_factor=np.inf, interpolate=True):
         r""" Calculate Vertical Velocity Spectrum from gather.
-
-        The velocity spectrum is computed by:
-        :math:`VS(k, v) = \frac{\sum^{k+N/2}_{i=k-N/2} numerator(i, v)}
-                            {\sum^{k+N/2}_{i=k-N/2} denominator(i, v)},
-
-        where:
-        - VS - velocity spectrum value for starting time index `k` and velocity `v`,
-        - N - temporal window size,
-        - numerator(i, v) - numerator of the coherency measure,
-        - denominator(i, v) - denominator of the coherency measure.
-
-        For different coherency measures the numerator and denominator are calculated as follows:
-
-        - Stacked Amplitude, "S":
-            numerator(i, v) = abs(sum^{M-1}_{j=0} f_{j}(i, v))
-            denominator(i, v) = 1
-        - Normalized Stacked Amplitude, "NS":
-            numerator(i, v) = abs(sum^{M-1}_{j=0} f_{j}(i, v))
-            denominator(i, v) = sum^{M-1}_{j=0} abs(f_{j}(i, v))
-        - Semblance, "NE":
-            numerator(i, v) = (sum^{M-1}_{j=0} f_{j}(i, v))^2 / M
-            denominator(i, v) = sum^{M-1}_{j=0} f_{j}(i, v)^2
-        - Crosscorrelation, "CC":
-            numerator(i, v) = ((sum^{M-1}_{j=0} f_{j}(i, v))^2 - sum^{M-1}_{j=0} f_{j}(i, v)^2) / 2
-            denominator(i, v) = 1
-        - Energy Normalized Crosscorrelation, "ENCC":
-            numerator(i, v) = ((sum^{M-1}_{j=0} f_{j}(i, v))^2 - sum^{M-1}_{j=0} f_{j}(i, v)^2) / (M - 1)
-            denominator(i, v) = sum^{M-1}_{j=0} f_{j}(i, v)^2
-
-        where f_{j}(i, v) is amplitude value on the `j`-th trace being NMO-corrected for time index `i` and velocity
-        `v`. Thus the amplitude is taken for the time defined by :math:`t(i, v) = \sqrt{t_0^2 + \frac{l_j^2}{v^2}}`,
-        where:
-        :math:`t_0` - start time of the hyperbola associated with time index `i`,
-        :math:`l_j` - offset of the `j`-th trace,
-        :math:`v` - velocity value.
-
-        See the COHERENCY_FUNCS for the full list of available coherency measures.
-
-        The resulting matrix :math:`VS(k, v)` has shape (n_times, n_velocities) and contains vertical velocity spectrum
-        values based on hyperbolas with each combination of the starting point :math:`k` and velocity :math:`v`.
-
-        The algorithm for velocity spectrum calculation looks as follows:
-        For each velocity from the given velocity range:
-            1. Calculate NMO-corrected gather.
-            2. Estimate numerator and denominator for given coherency measure for each timestamp.
-            3. Get the values of velocity spectrum as a ratio of rolling sums of numerator and denominator in temporal
-            windows of a given size.
+        The detailed description of computation algorithm can be found in the class docs.
 
         Parameters
         ----------
@@ -381,7 +381,6 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         stacking_velocity : StackingVelocity, StackingVelocityField or str, optional
             Stacking velocity to plot if given. If StackingVelocityField instance is passed,
             a StackingVelocity corresponding to spectrum coordinates is fetched from it.
-            If its times are sampled less than once every 50 ms, each point will be highlighted with a circle.
             May be `str` if plotted in a pipeline: in this case it defines a component with stacking velocities to use.
         interactive : bool, optional, defaults to False
             Whether to plot velocity spectrum in interactive mode. This mode also plots the gather used to calculate
@@ -469,6 +468,20 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
        to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_residual_velocity_spectrum` method (recommended way).
 
+    The method for residual spectrum computation from gather for a given time and velocity completely coincides with
+    the calculation of :func:`~VerticalVelocitySpectrum.from_gather`, however, residual velocity spectrum is computed
+    in a small area around givenstacking velocity, thus allowing for additional optimizations.
+
+    The boundaries in which calculation is performed depend on time `t` and are given by:
+    `stacking_velocity(t)` * (1 +- `relative_margin`).
+
+    Since the length of this velocity range varies for different timestamps, the residual velocity spectrum values
+    are interpolated to obtain a rectangular matrix of size (`n_times`, max(right_boundary - left_boundary)), where
+    `left_boundary` and `right_boundary` are arrays of left and right boundaries for all timestamps respectively.
+
+    Thus the residual velocity spectrum is a function of time and relative velocity margin. Zero margin line
+    corresponds to the given stacking velocity and generally should pass through local velocity spectrum maxima.
+
     Examples
     --------
     First let's sample a CDP gather from a survey:
@@ -543,20 +556,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     def from_gather(cls, gather, stacking_velocity, relative_margin=0.2, velocity_step=25, window_size=50,
                     mode='semblance', max_stretch_factor=np.inf, interpolate=True):
         """ Calculate Residual Velocity Spectrum from gather.
-
-        The method for residual spectrum computation for a given time and velocity completely coincides with
-        the calculation of :func:`~VerticalVelocitySpectrum.from_gather`, however, residual velocity spectrum
-        is computed in a small area around givenstacking velocity, thus allowing for additional optimizations.
-
-        The boundaries in which calculation is performed depend on time `t` and are given by:
-        `stacking_velocity(t)` * (1 +- `relative_margin`).
-
-        Since the length of this velocity range varies for different timestamps, the residual velocity spectrum values
-        are interpolated to obtain a rectangular matrix of size (`n_times`, max(right_boundary - left_boundary)), where
-        `left_boundary` and `right_boundary` are arrays of left and right boundaries for all timestamps respectively.
-
-        Thus the residual velocity spectrum is a function of time and relative velocity margin. Zero margin line
-        corresponds to the given stacking velocity and generally should pass through local velocity spectrum maxima.
+        The description of computation algorithm can be found in the class docs.
 
         Parameters
         ----------
