@@ -40,11 +40,6 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         self.gather = gather
 
     @property
-    def velocities(self):
-        """np.ndarray: Array of spectrum's velocity values. Measured in meters/seconds."""
-        return self.x_values
-
-    @property
     def samples(self):
         """np.ndarray: Array of spectrum's timestamps. Measured in milliseconds."""
         return self.y_values
@@ -222,6 +217,11 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         self.coherency_func = None
         self.half_win_size_samples = None
         self.max_stretch_factor = np.inf
+
+    @property
+    def velocities(self):
+        """np.ndarray: Array of spectrum's velocity values. Measured in meters/seconds."""
+        return self.x_values
 
     @property
     def n_velocities(self):
@@ -627,9 +627,9 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
     @staticmethod
     @njit(nogil=True, fastmath=True, parallel=True)
-    def _calc_spectrum_numba(spectrum_func, coherency_func, gather_data, times, offsets, stacking_velocities,
-                             relative_margin, velocity_step, sample_interval, delay, half_win_size_samples,
-                             interpolate, correction_type, max_strecth_factor):
+    def _calc_spectrum_numba(spectrum_func, coherency_func, correction_type, gather_data, times, offsets,
+                             stacking_velocities, relative_margin, velocity_step, sample_interval, delay,
+                             half_win_size_samples, interpolate, max_strecth_factor):
         """Parallelized and njitted method for residual vertical velocity spectrum calculation.
 
         Parameters
@@ -776,6 +776,11 @@ class SlantStack(BaseVelocitySpectrum):
 
     def __init__(self, slant_stack, velocities, times, gather=None, coords=None):
         super().__init__(slant_stack, velocities, times, gather=gather, coords=coords)
+
+    @property
+    def velocities(self):
+        """np.ndarray: Array of spectrum's velocity values. Measured in meters/seconds."""
+        return self.x_values
 
     @classmethod
     def from_gather(cls, gather, velocities=None):

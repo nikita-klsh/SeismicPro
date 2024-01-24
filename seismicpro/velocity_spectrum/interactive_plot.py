@@ -132,7 +132,7 @@ class VerticalVelocitySpectrumPlot(VelocitySpectrumPlot):
                      np.sqrt((1 + self.velocity_spectrum.max_stretch_factor)**2 - 1) / 1000
         super().plot_hodograph(ax, hodograph_times, "tab:blue", self.gather.offsets < max_offset, 'non-stretch muted')
         if not np.isinf(self.velocity_spectrum.max_stretch_factor):
-            super().plot_hodograph(ax, hodograph_times, "tab:red", self.gather.offsets > max_offset, 'stretch muted')
+            super().plot_hodograph(ax, hodograph_times, "tab:red", self.gather.offsets >= max_offset, 'stretch muted')
             ax.legend(loc='upper right', fontsize='small')
 
 
