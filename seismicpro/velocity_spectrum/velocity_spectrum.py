@@ -702,6 +702,7 @@ class SlantStack(BaseVelocitySpectrum):
     It can be achieved by applying linear moveout and summing amplitudes over the offset axis.
     Note that Slant Stack exist in time-velocity domain, not in conventional time-slowness.
 
+    Slant Stack instance can be created:
     1. By passing the gather to `from_gather` constructor.
     2. By calling :func:`~Gather.calculate_slant_stack` method (recommended way).
 
