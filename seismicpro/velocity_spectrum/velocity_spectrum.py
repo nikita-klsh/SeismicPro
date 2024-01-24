@@ -1,6 +1,6 @@
 """Implements VerticalVelocitySpectrum, ResidualVelocitySpectrum and SlantStack classes"""
 
-# pylint: disable=not-an-iterable, too-many-arguments
+# pylint: disable=not-an-iterable, too-many-arguments, attribute-defined-outside-init
 import math
 
 import numpy as np
@@ -35,9 +35,15 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
     """Base class for velocity spectrum calculation.
     Implements general computation logic based on the provided seismic gather.
     """
-    def __init__(self, *args, gather=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.gather = gather
+    def __init__(self, spectrum, x_values, gather):
+        super().__init__(spectrum, x_values, gather.times, coords=gather.coords)
+        self.gather = gather.copy()
+        self._sample_interval = gather.sample_interval
+        self.delay = gather.delay
+
+    @property
+    def sample_interval(self):
+        return self._sample_interval
 
     @property
     def samples(self):
@@ -156,10 +162,9 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     the more coherent the signal is along a hyperbolic trajectory over the spread length of the gather.
 
     Velocity spectrum instance can be created:
-    1. Directly by passing spectrum values, times and velocities to `__init__` .
-    2. By passing the gather (and optional parameters such as velocity range, window size, coherency measure
+    1. By passing the gather (and optional parameters such as velocity range, window size, coherency measure
        and a factor for stretch mute) to `from_gather` constructor.
-    3. By calling :func:`~Gather.calculate_vertical_velocity_spectrum` method (recommended way).
+    2. By calling :func:`~Gather.calculate_vertical_velocity_spectrum` method (recommended way).
 
     The velocity spectrum is computed from gather by:
         :math:`VS(k, v) = \frac{\sum^{k+N/2}_{i=k-N/2} numerator(i, v)}
@@ -218,19 +223,6 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     >>> gather = survey.sample_gather()
     >>> spectrum = gather.calculate_vertical_velocity_spectrum(velocities=np.linspace(2000, 6000, 200), window_size=16)
 
-    Parameters
-    ----------
-    spectrum : 2d np.ndarray
-        An array with vertical velocity spectrum values.
-    velocities : 1d np.ndarray
-        Stacking velocity values corresponding to the velocity spectrum. Measured in meters/seconds.
-    times: 1d np.ndarray
-        Timestamps corresponding to the velocity spectrum. Measured in milliseconds.
-    gather : Gather, optional, defaults to None
-        Seismic gather corresponding to the velocity spectrum.
-    coords : Coordinates, optional, defaults to None
-        Spatial coordinates of the velocity spectrum.
-
     Attributes
     ----------
     spectrum : 2d np.ndarray
@@ -257,16 +249,6 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         Gather moveout correction method used for velocity spectrum computation.
     """
     correction_type = 'NMO'
-
-    def __init__(self, spectrum, velocities, times, gather=None, coords=None):
-        super().__init__(spectrum, velocities, times, gather=gather, coords=coords)
-
-        # Set attributes relative to instance created `from_gather `.
-        self.stacking_velocity = None
-        self.relative_margin = None
-        self.coherency_func = None
-        self.half_win_size_samples = None
-        self.max_stretch_factor = np.inf
 
     @property
     def velocities(self):
@@ -354,7 +336,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
                   "correction_type": cls.correction_type, "max_strecth_factor": max_stretch_factor}
 
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
-        spectrum = cls(velocity_spectrum, velocities, gather.times, coords=gather.coords, gather=gather.copy())
+        spectrum = cls(velocity_spectrum, velocities, gather)
 
         spectrum.stacking_velocity = stacking_velocity
         spectrum.relative_margin = relative_margin
@@ -467,10 +449,9 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     Residual velocity spectrum is a hodograph coherency measure for a CDP gather along picked stacking velocity.
 
     Residual Velocity Spectrum instance can be created:
-    1. Directly by passing spectrum values, times and margins to `__init__`.
-    2. By passing the gather and stacking velocity (and optional parameters such as relative_margin)
+    1. By passing the gather and stacking velocity (and optional parameters such as relative_margin)
        to `from_gather` constructor.
-    3. By calling :func:`~Gather.calculate_residual_velocity_spectrum` method (recommended way).
+    2. By calling :func:`~Gather.calculate_residual_velocity_spectrum` method (recommended way).
 
     The method for residual spectrum computation from gather for a given time and velocity completely coincides with
     the calculation of :func:`~VerticalVelocitySpectrum.from_gather`, however, residual velocity spectrum is computed
@@ -499,19 +480,6 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     Residual velocity spectrum for the gather and calculated stacking velocity can be obtained as follows:
     >>> residual_spectrum = gather.calculate_residual_velocity_spectrum(velocity)
 
-    Parameters
-    ----------
-    spectrum : 2d np.ndarray
-        An array with residual vertical velocity spectrum values.
-    margins : 1d np.ndarray
-        Velocity margins corresponding to the residual velocity spectrum.
-    times: 1d np.ndarray
-        Timestamps corresponding to the residual velocity spectrum. Measured in miliseconds.
-    gather : Gather or None
-        Seismic gather corresponding to the residual velocity spectrum.
-    coords : Coordinates or None
-        Spatial coordinates of the residual velocity spectrum.
-
     Attributes
     ----------
     spectrum : 2d np.ndarray
@@ -536,15 +504,6 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         Gather correction method used for spectrum computation.
     """
     correction_type = 'NMO'
-
-    def __init__(self, spectrum, margins, times, gather=None, coords=None):
-        super().__init__(spectrum, margins, times, gather=gather, coords=coords)
-
-        # Set attributes relative to instance created `from_gather`.
-        self.stacking_velocity = None
-        self.coherency_func = None
-        self.half_win_size_samples = None
-        self.max_stretch_factor = np.inf
 
     @property
     def margins(self):
@@ -621,7 +580,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
         margins = np.linspace(-relative_margin, relative_margin, velocity_spectrum.shape[1])
-        spectrum = cls(velocity_spectrum, margins, gather.times, coords=gather.coords, gather=gather.copy())
+        spectrum = cls(velocity_spectrum, margins, gather)
 
         spectrum.stacking_velocity = stacking_velocity.copy().crop(gather.times[0], gather.times[-1])
         spectrum.coherency_func = coherency_func
@@ -743,23 +702,8 @@ class SlantStack(BaseVelocitySpectrum):
     It can be achieved by applying linear moveout and summing amplitudes over the offset axis.
     Note that Slant Stack exist in time-velocity domain, not in conventional time-slowness.
 
-    Slant Stack instance can be created:
-    1. Directly by passing Slant Stack values, times and velocities to `__init__`.
-    2. By passing the gather to `from_gather` constructor.
-    3. By calling :func:`~Gather.calculate_slant_stack` method (recommended way).
-
-    Parameters
-    ----------
-    slant_stack : 2d np.ndarray
-        An array with slant stack values.
-    velocities : 1d np.ndarray
-        Velocities corresponding to the slant stack. Measured in meters/seconds.
-    times: 1d np.ndarray
-        Timestamps corresponding to the slant stack. Measured in miliseconds.
-    gather : Gather, optional, defaults to None
-        Seismic gather corresponding to the slant stack.
-    coords : Coordinates, optional, defaults to None
-        Spatial coordinates of the slant stack.
+    1. By passing the gather to `from_gather` constructor.
+    2. By calling :func:`~Gather.calculate_slant_stack` method (recommended way).
 
     Attributes
     ----------
@@ -777,9 +721,6 @@ class SlantStack(BaseVelocitySpectrum):
         Gather correction method used for spectrum computation.
     """
     correction_type = 'LMO'
-
-    def __init__(self, slant_stack, velocities, times, gather=None, coords=None):
-        super().__init__(slant_stack, velocities, times, gather=gather, coords=coords)
 
     @property
     def velocities(self):
@@ -826,7 +767,7 @@ class SlantStack(BaseVelocitySpectrum):
                   "max_strecth_factor": np.inf}
 
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
-        spectrum = cls(velocity_spectrum, velocities, gather.times, coords=gather.coords, gather=gather.copy())
+        spectrum = cls(velocity_spectrum, velocities, gather)
         return spectrum
 
     @plotter(figsize=(10, 9))
