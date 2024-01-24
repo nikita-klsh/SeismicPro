@@ -148,12 +148,12 @@ class VFUNC:
             raise ValueError("Inconsistent shapes of times and velocities")
 
     def copy(self):
-        """ Return a copy of VFUNC. """
+        """Return a copy of VFUNC."""
         return deepcopy(self)
 
     @plotter(figsize=(7, 5))
     def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
-        """ Plot VFUNC.
+        """Plot VFUNC.
 
         Parameters
         ----------
@@ -178,7 +178,7 @@ class VFUNC:
             ax.invert_yaxis()
 
     def crop(self, start_x, end_x):
-        """ Either extend or cut vfunc domain, e.g. data_x, to [start_x, end_x] range.
+        """Either extend or cut vfunc domain, e.g. data_x, to [start_x, end_x] range.
 
         Parameters
         ---------

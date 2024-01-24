@@ -69,7 +69,7 @@ class Spectrum:
 
     @batch_method(target="for")
     def scale_norm(self):
-        """ Scale the spectrum along the y axis by normalizing values to L2 norm."""
+        """Scale the spectrum along the y axis by normalizing values to L2 norm."""
         l2_norm = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5
         self.spectrum = np.where(l2_norm != 0, self.spectrum / l2_norm, 0)
         return self

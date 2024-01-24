@@ -176,20 +176,24 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     - Stacked Amplitude, "S":
         numerator(i, v) = abs(sum^{M-1}_{j=0} f_{j}(i, v))
         denominator(i, v) = 1
+
     - Normalized Stacked Amplitude, "NS":
         numerator(i, v) = abs(sum^{M-1}_{j=0} f_{j}(i, v))
         denominator(i, v) = sum^{M-1}_{j=0} abs(f_{j}(i, v))
+
     - Semblance, "NE":
         numerator(i, v) = (sum^{M-1}_{j=0} f_{j}(i, v))^2 / M
         denominator(i, v) = sum^{M-1}_{j=0} f_{j}(i, v)^2
+
     - Crosscorrelation, "CC":
         numerator(i, v) = ((sum^{M-1}_{j=0} f_{j}(i, v))^2 - sum^{M-1}_{j=0} f_{j}(i, v)^2) / 2
         denominator(i, v) = 1
+
     - Energy Normalized Crosscorrelation, "ENCC":
         numerator(i, v) = ((sum^{M-1}_{j=0} f_{j}(i, v))^2 - sum^{M-1}_{j=0} f_{j}(i, v)^2) / (M - 1)
         denominator(i, v) = sum^{M-1}_{j=0} f_{j}(i, v)^2
 
-    where f_{j}(i, v) is amplitude value on the `j`-th trace being NMO-corrected for time index `i` and velocity
+    where f_{j}(i, v) is the amplitude value on the `j`-th trace being NMO-corrected for time index `i` and velocity
     `v`. Thus the amplitude is taken for the time defined by :math:`t(i, v) = \sqrt{t_0^2 + \frac{l_j^2}{v^2}}`, where:
     :math:`t_0` - start time of the hyperbola associated with time index `i`,
     :math:`l_j` - offset of the `j`-th trace,
@@ -277,7 +281,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     @classmethod
     def from_gather(cls, gather, velocities=None, stacking_velocity=None, relative_margin=0.2, velocity_step=50,
                     window_size=50, mode='semblance', max_stretch_factor=np.inf, interpolate=True):
-        r""" Calculate Vertical Velocity Spectrum from gather.
+        r"""Calculate Vertical Velocity Spectrum from gather.
         The detailed description of computation algorithm can be found in the class docs.
 
         Parameters
@@ -544,7 +548,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
     @property
     def margins(self):
-        """ np.ndarray: Array of residual spectrum's velocity margins."""
+        """np.ndarray: Array of residual spectrum's velocity margins."""
         return self.x_values
 
     @property
@@ -555,7 +559,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     @classmethod
     def from_gather(cls, gather, stacking_velocity, relative_margin=0.2, velocity_step=25, window_size=50,
                     mode='semblance', max_stretch_factor=np.inf, interpolate=True):
-        """ Calculate Residual Velocity Spectrum from gather.
+        """Calculate Residual Velocity Spectrum from gather.
         The description of computation algorithm can be found in the class docs.
 
         Parameters
