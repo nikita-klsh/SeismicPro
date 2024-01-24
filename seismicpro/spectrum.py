@@ -67,7 +67,7 @@ class Spectrum:
         """bool: Whether both axes are uniform."""
         return self.is_x_axis_uniform and self.is_y_axis_uniform
 
-    @batch_method(target="for", copy_src=False)
+    @batch_method(target="for")
     def scale_norm(self):
         """ Scale the spectrum along the y axis by normalizing values to L2 norm."""
         l2_norm = np.nansum(self.spectrum ** 2, axis=1, keepdims=True) ** 0.5
@@ -91,7 +91,7 @@ class Spectrum:
         grid : bool, optional, defaults to False
             Specifies whether to draw a grid on the plot.
         colorbar : bool or dict, optional, defaults to True
-            Whether to add a colorbar to the right of the velocity spectrum plot.
+            Whether to add a colorbar to the right of the spectrum plot.
             If `dict`, defines extra keyword arguments for `matplotlib.figure.Figure.colorbar`.
         x_label : str, optional, defaults to None
             The title of the x-axis.
@@ -104,7 +104,7 @@ class Spectrum:
         title : str, optional, defaults to None
             Plot title.
         clip_threshold_quantile : float, optional, defaults to 0.99
-            Clip the velocity spectrum values by given quantile.
+            Clip spectrum values by given quantile.
         n_levels : int, optional, defaults to 10
             The number of levels on the colorbar.
         ax : matplotlib.axes.Axes, optional, defaults to None

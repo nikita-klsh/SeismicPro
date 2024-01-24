@@ -175,7 +175,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     velocities : 1d np.ndarray
         Stacking velocity values corresponding to the velocity spectrum. Measured in meters/seconds.
     times: 1d np.ndarray
-        Timestamps corresponding to the velocity spectrum. Measured in miliseconds.
+        Timestamps corresponding to the velocity spectrum. Measured in milliseconds.
     gather : Gather, optional, defaults to None
         Seismic gather corresponding to the velocity spectrum.
     coords : Coordinates, optional, defaults to None
