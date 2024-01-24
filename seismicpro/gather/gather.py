@@ -820,10 +820,10 @@ class Gather(TraceContainer, SamplesContainer):
         vertical_velocity_spectrum : VerticalVelocitySpectrum
             Calculated vertical velocity spectrum.
         """
-        return VerticalVelocitySpectrum.from_gather(gather=self, velocities=velocities,
-                                        stacking_velocity=stacking_velocity, relative_margin=relative_margin,
-                                        velocity_step=velocity_step, window_size=window_size, mode=mode,
-                                        max_stretch_factor=max_stretch_factor, interpolate=interpolate)
+        kwargs = {'velocities': velocities, 'stacking_velocity': stacking_velocity, 'relative_margin': relative_margin,
+                  'velocity_step': velocity_step, 'window_size': window_size, 'mode': mode,
+                  'max_stretch_factor': max_stretch_factor, 'interpolate': interpolate}
+        return VerticalVelocitySpectrum.from_gather(self, **kwargs)
 
     @batch_method(target="for", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_residual_velocity_spectrum(self, stacking_velocity, relative_margin=0.2, velocity_step=25,
@@ -880,10 +880,10 @@ class Gather(TraceContainer, SamplesContainer):
         residual_velocity_spectrum : ResidualVelocitySpectrum
             Calculated residual velocity spectrum.
         """
-        return ResidualVelocitySpectrum.from_gather(gather=self, stacking_velocity=stacking_velocity,
-                                        relative_margin=relative_margin, velocity_step=velocity_step,
-                                        window_size=window_size, mode=mode, max_stretch_factor=max_stretch_factor,
-                                        interpolate=interpolate)
+        kwargs = {'stacking_velocity': stacking_velocity, 'relative_margin': relative_margin,
+                  'velocity_step': velocity_step, 'window_size': window_size, 'mode': mode,
+                  'max_stretch_factor': max_stretch_factor, 'interpolate': interpolate}
+        return ResidualVelocitySpectrum.from_gather(self, **kwargs)
 
     @batch_method(target="for", copy_src=False)
     def calculate_slant_stack(self, velocities=None):
