@@ -1,4 +1,4 @@
-"""Implements VerticalVelocitySpectrum, ResidualVelocitySpectrum and SlantStack classes."""
+"""Implements VerticalVelocitySpectrum, ResidualVelocitySpectrum and SlantStack classes"""
 
 # pylint: disable=not-an-iterable, too-many-arguments
 import math
@@ -161,7 +161,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
        and a factor for stretch mute) to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_vertical_velocity_spectrum` method (recommended way).
 
-    To calculate velocity spectrum from gather:
+    The velocity spectrum is computed from gather by:
         :math:`VS(k, v) = \frac{\sum^{k+N/2}_{i=k-N/2} numerator(i, v)}
                             {\sum^{k+N/2}_{i=k-N/2} denominator(i, v)},
 
