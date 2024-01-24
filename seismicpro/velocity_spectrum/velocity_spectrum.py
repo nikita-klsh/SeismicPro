@@ -32,7 +32,7 @@ COHERENCY_FUNCS = {
 
 
 class BaseVelocitySpectrum(Spectrum, SamplesContainer):
-    """Base class for velocity spectrum calculation. 
+    """Base class for velocity spectrum calculation.
     Implements general computation logic based on the provided seismic gather.
     """
     def __init__(self, *args, gather=None, **kwargs):
@@ -136,7 +136,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
         correction_type: str, 'LMO' or 'NMO'
             Type of correction to perform. 'NMO' for normal moveout, 'LMO' for linear moveout.
         other parameters : misc
-            Passed directly from class attributes or `from_gather` arguments (except for `velocities` 
+            Passed directly from class attributes or `from_gather` arguments (except for `velocities`
             which are converted from m/s to m/ms).
 
         Returns
@@ -157,12 +157,12 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
 class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     r"""A class for Vertical Velocity Spectrum calculation and processing.
 
-    Vertical velocity spectrum is a measure of hodograph coherency. The higher the values of velocity spectrum are, 
+    Vertical velocity spectrum is a measure of hodograph coherency. The higher the values of velocity spectrum are,
     the more coherent the signal is along a hyperbolic trajectory over the spread length of the gather.
 
     Velocity spectrum instance can be created:
     1. Directly by passing spectrum values, times and velocities to `__init__` .
-    2. By passing the gather (and optional parameters such as velocity range, window size, coherency measure 
+    2. By passing the gather (and optional parameters such as velocity range, window size, coherency measure
        and a factor for stretch mute) to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_vertical_velocity_spectrum` method (recommended way).
 
@@ -312,7 +312,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
                 `crosscorrelation` or `CC`,
                 `energy_normalized_crosscorrelation` or `ENCC`.
         max_stretch_factor : float, defaults to np.inf
-            Maximum allowable factor for the muter that attenuates the effect of waveform stretching after 
+            Maximum allowable factor for the muter that attenuates the effect of waveform stretching after
             NMO correction. This mute is applied after NMO correction for each provided velocity and before coherency
             calculation. The lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
             Reasonably good value is 0.65.
@@ -346,7 +346,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         kwargs = {"spectrum_func": cls.calc_single_velocity_spectrum, "coherency_func": coherency_func,
                   "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
                   "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
-                  "half_win_size_samples": half_win_size_samples, "interpolate": interpolate, 
+                  "half_win_size_samples": half_win_size_samples, "interpolate": interpolate,
                   "correction_type": cls.correction_type, "max_strecth_factor": max_stretch_factor}
 
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
@@ -379,7 +379,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         Parameters
         ----------
         stacking_velocity : StackingVelocity, StackingVelocityField or str, optional
-            Stacking velocity to plot if given. If StackingVelocityField instance is passed, 
+            Stacking velocity to plot if given. If StackingVelocityField instance is passed,
             a StackingVelocity corresponding to spectrum coordinates is fetched from it.
             If its times are sampled less than once every 50 ms, each point will be highlighted with a circle.
             May be `str` if plotted in a pipeline: in this case it defines a component with stacking velocities to use.
@@ -402,7 +402,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
             stacking_velocity = stacking_velocity(self.coords)
 
         plot_kwargs = {"vfunc": stacking_velocity, "title": title, "half_win_size": self.half_win_size_samples or 10,
-                      "x_label": "Velocity, m/s", "y_label": 'Time, ms',  **kwargs} 
+                      "x_label": "Velocity, m/s", "y_label": 'Time, ms',  **kwargs}
 
         if not interactive:
             return super().plot(**plot_kwargs)
@@ -461,11 +461,11 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
 
 class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     """A class for residual vertical velocity spectrum calculation and processing.
-    Residual velocity spectrum is a hodograph coherency measure for a CDP gather along picked stacking velocity. 
+    Residual velocity spectrum is a hodograph coherency measure for a CDP gather along picked stacking velocity.
 
     Residual Velocity Spectrum instance can be created:
     1. Directly by passing spectrum values, times and margins to `__init__`.
-    2. By passing the gather and stacking velocity (and optional parameters such as relative_margin) 
+    2. By passing the gather and stacking velocity (and optional parameters such as relative_margin)
        to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_residual_velocity_spectrum` method (recommended way).
 
@@ -556,7 +556,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         `left_boundary` and `right_boundary` are arrays of left and right boundaries for all timestamps respectively.
 
         Thus the residual velocity spectrum is a function of time and relative velocity margin. Zero margin line
-        corresponds to the given stacking velocity and generally should pass through local velocity spectrum maxima. 
+        corresponds to the given stacking velocity and generally should pass through local velocity spectrum maxima.
 
         Parameters
         ----------
@@ -611,7 +611,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
                   "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
                   "stacking_velocities": stacking_velocities, "relative_margin": relative_margin,
                   "velocity_step": velocity_step, "sample_interval": gather.sample_interval, "delay": gather.delay,
-                  "half_win_size_samples": half_win_size_samples, "interpolate": interpolate, 
+                  "half_win_size_samples": half_win_size_samples, "interpolate": interpolate,
                   "correction_type": cls.correction_type, "max_strecth_factor": max_stretch_factor}
 
 
@@ -725,7 +725,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
                                         VFUNC([0, self.samples[-1]], [acceptable_margin, acceptable_margin])]
 
         plot_kwargs = {"vfunc": stacking_velocity, "title": title, "half_win_size": self.half_win_size_samples or 10,
-                       "x_ticker": {"round_to": 2}, "x_label": "Margin", "y_label": 'Time, ms', **kwargs} 
+                       "x_ticker": {"round_to": 2}, "x_label": "Margin", "y_label": 'Time, ms', **kwargs}
 
         if not interactive:
             return super().plot(**plot_kwargs)
@@ -741,7 +741,7 @@ class SlantStack(BaseVelocitySpectrum):
 
     Slant Stack instance can be created:
     1. Directly by passing Slant Stack values, times and velocities to `__init__`.
-    2. By passing the gather  to `from_gather` constructor.
+    2. By passing the gather to `from_gather` constructor.
     3. By calling :func:`~Gather.calculate_slant_stack` method (recommended way).
 
     Parameters
@@ -780,15 +780,15 @@ class SlantStack(BaseVelocitySpectrum):
     @classmethod
     def from_gather(cls, gather, velocities=None):
         """Calculate Slant Stack transform from gather.
-        
-        The method for slant stack computation for a given time and velocity coincides with 
+
+        The method for slant stack computation for a given time and velocity coincides with
         the calculation of :func:`~VerticalVelocitySpectrum.from_gather` and looks as follows:
 
         For each velocity from the given velocity range:
             1. Calculate LMO-corrected gather.
             2. Estimate numerator and denominator for `stacked_amplitude_sum` coherency measure for each timestamp.
             3. Get the slant stack value as a ratio of numerator and denominator.
-        
+
         Parameters
         ----------
         gather : Gather
@@ -813,7 +813,7 @@ class SlantStack(BaseVelocitySpectrum):
                   "coherency_func": coherency_funcs.stacked_amplitude_sum,
                   "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
                   "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
-                  "half_win_size_samples": 0, "interpolate": True, "correction_type": cls.correction_type, 
+                  "half_win_size_samples": 0, "interpolate": True, "correction_type": cls.correction_type,
                   "max_strecth_factor": np.inf}
 
         velocity_spectrum = cls._calc_spectrum_numba(**kwargs)

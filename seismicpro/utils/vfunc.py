@@ -153,8 +153,8 @@ class VFUNC:
 
     @plotter(figsize=(7, 5))
     def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
-        """ Plot VFUNC. 
-        
+        """ Plot VFUNC.
+
         Parameters
         ----------
         ax : matplotlib.axes.Axes, optional, defaults to None
@@ -179,14 +179,14 @@ class VFUNC:
 
     def crop(self, start_x, end_x):
         """ Either extend or cut vfunc domain, e.g. data_x, to [start_x, end_x] range.
-        
+
         Parameters
         ---------
         start_x: float
             Starting value for data_x.
         end_x: float
             Ending x_value for data_x.
-        
+
         Returns
         -------
         self : VFUNC

@@ -64,7 +64,7 @@ class StackingVelocity(VFUNC):
     coords : Coordinates or None
         Spatial coordinates of the stacking velocity.
     bounds : list of two StackingVelocity or None
-        Left and right bounds of area around stacking velocity. 
+        Left and right bounds of area around stacking velocity.
         For example, defined if the stacking velocity was created using `from_vertical_velocity_spectrum`. In this case
         defines the area where stacking velocity was picked.
     """

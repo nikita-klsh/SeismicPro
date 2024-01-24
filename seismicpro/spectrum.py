@@ -10,7 +10,7 @@ from .decorators import batch_method, plotter
 
 
 class Spectrum:
-    """Base class for various transforms of seismic wavefield. 
+    """Base class for various transforms of seismic wavefield.
     Implements general processing and visualization logic.
 
     Parameters
@@ -100,7 +100,7 @@ class Spectrum:
         y_label : str, optional, defaults to None
             The title of the y-axis.
         y_ticker : dict, optional, defaults to None
-            Parameters for ticks and ticklabels formatting for the y-axis; see `.utils.set_ticks` for more details.         
+            Parameters for ticks and ticklabels formatting for the y-axis; see `.utils.set_ticks` for more details.
         title : str, optional, defaults to None
             Plot title.
         clip_threshold_quantile : float, optional, defaults to 0.99
