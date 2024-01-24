@@ -163,9 +163,9 @@ class VFUNC:
             Whether to invert y axis of the axis.
         plot_bounds: bool, optional, defaults to True
             Whether to plot vfunc bounds, if their exist.
-        fill_area_color: bool, optional, defaluts to True
-            Fill area color.
-        alpha: float, optional, defaults to 0.2
+        bounds_fill_color: str, optional, defaluts to "g"
+            A color to be used to fill an area between VFUNC bounds.
+        bounds_fill_alpha: float, optional, defaults to 0.2
             Transparency of the bounds plot.
         kwargs : misc, optional
             Additional keyword arguments to the `ax.plot`.
@@ -174,7 +174,7 @@ class VFUNC:
         if self.bounds is not None and plot_bounds:
             ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y,
                              color=fill_area_color, alpha=alpha)
-        if invert:
+        if invert and not ax.yaxis_inverted:
             ax.invert_yaxis()
 
     def crop(self, start_x, end_x):
