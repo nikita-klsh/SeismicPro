@@ -231,19 +231,19 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         Stacking velocity values corresponding to the velocity spectrum. Measured in meters/seconds.
     times: 1d np.ndarray
         Timestamps corresponding to the velocity spectrum. Measured in miliseconds.
-    gather : Gather or None
+    gather : Gather
         Seismic gather corresponding to the velocity spectrum.
-    coords : Coordinates or None
+    coords : Coordinates
         Spatial coordinates of the velocity spectrum.
-    stacking_velocity : StackingVelocity or None
+    stacking_velocity : StackingVelocity
         Stacking velocity around which velocity spectrum was calculated.
-    relative_margin : float or None
+    relative_margin : float
         Relative margin for which velocity range obtained from `stacking_velocity` was additionally extended.
-    coherency_func : callable or None
+    coherency_func : callable
         A function that estimates the hodograph's coherency measure.
-    half_win_size_samples : int or None
+    half_win_size_samples : int
         Half of the temporal window size for smoothing the velocity spectrum. Measured in samples.
-    max_stretch_factor : float or np.inf
+    max_stretch_factor : float
         Maximum allowable factor for stretch muter.
     correction_type: 'NMO'
         Gather moveout correction method used for velocity spectrum computation.
@@ -488,13 +488,13 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         An array of residul velocity spectrum margins.
     times: 1d np.ndarray
         An array of residul velocity spectrum timestamps. Measured in miliseconds.
-    gather : Gather or None
+    gather : Gather
         Seismic gather corresponding to the residual velocity spectrum.
-    coords : Coordinates or None
+    coords : Coordinates
         Spatial coordinates of the residual velocity spectrum.
     stacking_velocity : StackingVelocity
         Stacking velocity around which residual velocity spectrum was calculated.
-    coherency_func : callable or None
+    coherency_func : callable
         A function that estimates the chosen coherency measure for a hodograph.
     half_win_size_samples : int
         Half of the temporal window size for smoothing the velocity spectrum. Measured in samples.
@@ -714,9 +714,9 @@ class SlantStack(BaseVelocitySpectrum):
         Velocities corresponding to the slant stack. Measured in meters/seconds.
     times: 1d np.ndarray
         Timestamps corresponding to the slant stack. Measured in miliseconds.
-    gather : Gather or None
+    gather : Gather
         Seismic gather corresponding to the slant stack.
-    coords : Coordinates or None
+    coords : Coordinates
         Spatial coordinates of the slant stack.
     correction_type: 'LMO'
         Gather correction method used for spectrum computation.
