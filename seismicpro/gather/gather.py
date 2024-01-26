@@ -24,7 +24,7 @@ from ..utils import (to_list, get_coords_cols, get_first_defined, set_ticks, for
                      set_text_formatting, add_colorbar, piecewise_polynomial, Coordinates)
 from ..containers import TraceContainer, SamplesContainer
 from ..muter import Muter, MuterField
-from ..velocity_spectrum import VerticalVelocitySpectrum, ResidualVelocitySpectrum
+from ..velocity_spectrum import VerticalVelocitySpectrum, ResidualVelocitySpectrum, SlantStack
 from ..stacking_velocity import StackingVelocity, StackingVelocityField
 from ..refractor_velocity import RefractorVelocity, RefractorVelocityField
 from ..decorators import batch_method, plotter
@@ -820,10 +820,10 @@ class Gather(TraceContainer, SamplesContainer):
         vertical_velocity_spectrum : VerticalVelocitySpectrum
             Calculated vertical velocity spectrum.
         """
-        return VerticalVelocitySpectrum(gather=self, velocities=velocities, stacking_velocity=stacking_velocity,
-                                        relative_margin=relative_margin, velocity_step=velocity_step,
-                                        window_size=window_size, mode=mode, max_stretch_factor=max_stretch_factor,
-                                        interpolate=interpolate)
+        kwargs = {'velocities': velocities, 'stacking_velocity': stacking_velocity, 'relative_margin': relative_margin,
+                  'velocity_step': velocity_step, 'window_size': window_size, 'mode': mode,
+                  'max_stretch_factor': max_stretch_factor, 'interpolate': interpolate}
+        return VerticalVelocitySpectrum.from_gather(self, **kwargs)
 
     @batch_method(target="for", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_residual_velocity_spectrum(self, stacking_velocity, relative_margin=0.2, velocity_step=25,
@@ -880,10 +880,27 @@ class Gather(TraceContainer, SamplesContainer):
         residual_velocity_spectrum : ResidualVelocitySpectrum
             Calculated residual velocity spectrum.
         """
-        return ResidualVelocitySpectrum(gather=self, stacking_velocity=stacking_velocity,
-                                        relative_margin=relative_margin, velocity_step=velocity_step,
-                                        window_size=window_size, mode=mode, max_stretch_factor=max_stretch_factor,
-                                        interpolate=interpolate)
+        kwargs = {'stacking_velocity': stacking_velocity, 'relative_margin': relative_margin,
+                  'velocity_step': velocity_step, 'window_size': window_size, 'mode': mode,
+                  'max_stretch_factor': max_stretch_factor, 'interpolate': interpolate}
+        return ResidualVelocitySpectrum.from_gather(self, **kwargs)
+
+    @batch_method(target="for", copy_src=False)
+    def calculate_slant_stack(self, velocities=None):
+        """Calculate slant stack transform of the gather.
+
+        Parameters
+        ----------
+        velocities : 1d np.ndarray, optional, defaults to None
+            An array of velocities to calculate slant stack for. Measured in meters/seconds.
+            If not provided, uniformly covers the range from 100 m/s to 2400 m/s with step 50 m/s.
+
+        Returns
+        -------
+        slant_stack : SlantStack
+            Calculated slant stack transform.
+        """
+        return SlantStack.from_gather(self, velocities=velocities)
 
     #------------------------------------------------------------------------#
     #                           Gather corrections                           #

@@ -1,9 +1,12 @@
 """Utilities for processing of vertical functions"""
 
+from copy import deepcopy
+
 import numpy as np
 
 from .general_utils import to_list
 from .interpolation import interp1d
+from ..decorators import plotter
 from .coordinates import Coordinates
 
 
@@ -122,19 +125,83 @@ class VFUNC:
     `data_y`. VFUNC instances are callable and return interpolated `y` values for given values of `x`. Values outside
     the `data_x` range are linearly extrapolated.
     """
-    def __init__(self, data_x, data_y, coords=None):
+    def __init__(self, data_x, data_y, coords=None, bounds=None):
         self.data_x = np.array(data_x)
         self.data_y = np.array(data_y)
         self.validate_data()
         self.interpolator = interp1d(self.data_x, self.data_y)
+
         if coords is not None and not isinstance(coords, Coordinates):
             raise ValueError("coords must be either None or an instance of Coordinates")
         self.coords = coords
+
+        if bounds is None:
+            self.bounds = bounds
+        elif len(bounds) == 2 and all(isinstance(bound, VFUNC) for bound in bounds):
+            self.bounds = [bound.copy() for bound in bounds]
+        else:
+            raise ValueError("bounds must be either None or iterable with 2 VFUNCs")
 
     def validate_data(self):
         """Validate whether `data_x` and `data_y` are 1d arrays of the same shape."""
         if self.data_x.ndim != 1 or self.data_x.shape != self.data_y.shape:
             raise ValueError("Inconsistent shapes of times and velocities")
+
+    def copy(self):
+        """Return a copy of VFUNC."""
+        return deepcopy(self)
+
+    @plotter(figsize=(7, 5))
+    def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
+        """Plot VFUNC.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional, defaults to None
+            An axis of the figure to plot on. If not given, it will be created automatically.
+        invert: bool, optional, defaluts to True
+            Whether to invert y axis of the axis.
+        plot_bounds: bool, optional, defaults to True
+            Whether to plot vfunc bounds, if their exist.
+        bounds_fill_color: str, optional, defaluts to "g"
+            A color to be used to fill an area between VFUNC bounds.
+        bounds_fill_alpha: float, optional, defaults to 0.2
+            Transparency of the bounds plot.
+        kwargs : misc, optional
+            Additional keyword arguments to the `ax.plot`.
+        """
+        ax.plot(self.data_y, self.data_x, **kwargs)
+        if self.bounds is not None and plot_bounds:
+            ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y,
+                             color=fill_area_color, alpha=alpha)
+        if invert and not ax.yaxis_inverted:
+            ax.invert_yaxis()
+
+    def crop(self, start_x, end_x):
+        """Either extend or cut vfunc domain, e.g. data_x, to [start_x, end_x] range.
+
+        Parameters
+        ---------
+        start_x: float
+            Starting value for data_x.
+        end_x: float
+            Ending x_value for data_x.
+
+        Returns
+        -------
+        self : VFUNC
+            Cropped VFUNC.
+        """
+        valid_x_mask = (self.data_x > start_x) & (self.data_x < end_x)
+        valid_x = np.sort(self.data_x[valid_x_mask])
+        new_x = np.concatenate([[start_x], valid_x, [end_x]])
+        self.data_x = new_x
+        self.data_y = self(new_x)
+
+        if self.bounds is not None:
+            self.bounds[0].crop(start_x, end_x)
+            self.bounds[1].crop(start_x, end_x)
+        return self
 
     @property
     def has_coords(self):
