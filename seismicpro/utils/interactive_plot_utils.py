@@ -258,19 +258,19 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
                            self.save_button]
         return box_type(self.construct_extra_buttons() + toolbar_buttons)
 
-    def _connect_widgets(self, first, second, how):
-        if how == "top":
+    def _connect_widgets(self, first, second, position):
+        if position == "top":
             return widgets.VBox([first, second])
-        if how == "bottom":
+        if position == "bottom":
             return widgets.VBox([second, first])
-        if how == "left":
+        if position == "left":
             return widgets.HBox([first, second])
         return widgets.HBox([second, first])
 
     def construct_box(self):
         """Construct the box of the whole plot which contains figure canvas, header and a toolbar."""
         titled_box = widgets.HBox([widgets.VBox([self.header, self.fig.canvas])])
-        return self._connect_widgets(self.toolbar, titled_box, how=self.toolbar_position)
+        return self._connect_widgets(self.toolbar, titled_box, position=self.toolbar_position)
 
     # Event handlers
 
@@ -717,12 +717,12 @@ class ToggleButtonsPlot(InteractivePlot):
     plot_fn : callable or list of callable, optional
         One or more plotters each accepting a single keyword argument `ax`. If not given, an empty plot is created.
     names : list of str or None, optional
-        List of descriptions displayed on the toggle buttons. If None, numbers started from 0 to n_views will be used.
+        List of descriptions displayed on the toggle buttons. If None, numbers started from 1 to n_views will be used.
         If `icons` is not None, this parameter will be ommited.
     icons : list of str or None, optional
         List of font-awesome icon names for each toggle button.
     buttons_position : {"top", "bottom", "left", "right"}, optional, defaults to "right"
-        Toggle bottons position relative to the toolbar.
+        Toggle buttons position relative to the toolbar.
     click_fn : callable or list of callable, optional
         Click handlers for views defined by `plot_fn`. Each of them must accept a tuple with 2 elements defining
         click coordinates. If a single `click_fn` is given, it is used for all views. If not given, click events are
@@ -737,8 +737,9 @@ class ToggleButtonsPlot(InteractivePlot):
     marker_params : dict or list of dict, optional, defaults to {"marker": "+", "color": "black"}
         Click marker parameters for views defined by `plot_fn`. Passed directly to `Axes.scatter`. If a single `dict`
         is given, it is used for all views.
-    title : str or list of str, optional
-        Plot titles for views defined by `plot_fn`, act as dropdown options.
+    title : str or callable or list of str or callable, optional
+        Plot titles for views defined by `plot_fn`. If `callable`, it is called each time the title is being set (e.g.
+        on `redraw`) allowing for dynamic title generation. If not given, an empty title is created.
     preserve_clicks_on_view_change : bool, optional, defaults to False
         Whether to preserve click/slice markers and trigger the corresponding event on view change.
     preserve_lims : bool, optional, defaults to False
@@ -763,26 +764,28 @@ class ToggleButtonsPlot(InteractivePlot):
         The number of plot views.
     current_view : int
         An index of the current plot view.
-    buttons : list
+    view_toggle_buttons : list
         A list with toggle buttons responsible for view change.
     """
-    def __init__(self, *, plot_fn, names=None, icons=None, buttons_position="right", **kwargs):
+    def __init__(self, *, plot_fn=None, names=None, icons=None, buttons_position="right", **kwargs):
         plot_fn_list = to_list(plot_fn)
-        names = [str(i) for i, _ in enumerate(plot_fn_list)] if names is None else names
-        icons = [icons] * len(plot_fn_list) if icons is None else icons
-
-        if len(names) != len(plot_fn_list):
-            raise ValueError("The length of `names` must match number of views")
-        if len(icons) != len(plot_fn_list):
-            raise ValueError("The length of `icons` must match number of views")
+        if icons is not None:
+            if len(icons) != len(plot_fn_list):
+                raise ValueError("The length of `icons` must match number of views")
+            buttons_kwargs = [{"icon": icon} for icon in icons]
+        elif names is not None:
+            if len(names) != len(plot_fn_list):
+                raise ValueError("The length of `names` must match number of views")
+            buttons_kwargs = [{"description": name} for name in names]
+        else:
+            buttons_kwargs = [{"description": str(i+1)} for i, _ in enumerate(plot_fn_list)]
 
         # Define widget buttons
-        self.buttons = []
-        for name, icon in zip(names, icons):
-            button_kwargs = {"description": name} if icon is None else {"icon": icon}
+        self.view_toggle_buttons = []
+        for button_kwargs in buttons_kwargs:
             button = widgets.ToggleButton(layout=widgets.Layout(**{**BUTTON_LAYOUT, "width": "auto"}), **button_kwargs)
             button.observe(self.on_button_toggle, "value")
-            self.buttons.append(button)
+            self.view_toggle_buttons.append(button)
 
         available_buttons_positions = {"top", "bottom", "left", "right"}
         if buttons_position not in available_buttons_positions:
@@ -799,13 +802,13 @@ class ToggleButtonsPlot(InteractivePlot):
         """Construct a plot toolbar and attach toggle buttons to it."""
         toolbar = super().construct_toolbar()
         button_box_type = widgets.HBox if self.toolbar_position in {"top", "bottom"} else widgets.VBox
-        buttons = button_box_type(self.buttons)
-        return self._connect_widgets(buttons, toolbar, how=self.buttons_position)
+        buttons = button_box_type(self.view_toggle_buttons)
+        return self._connect_widgets(buttons, toolbar, position=self.buttons_position)
 
     def on_button_toggle(self, event):
-        """Switch the plot to the view correspnding to the pressed button."""
+        """Switch the plot to the view corresponding to the pressed button."""
         pressed_button = event["owner"]
-        for ix, button in enumerate(self.buttons):
+        for ix, button in enumerate(self.view_toggle_buttons):
             if button is pressed_button:
                 self.set_view(ix)
             else:  # Disable if button is not pressed
@@ -829,19 +832,19 @@ class SlidingPlot(InteractivePlot):
 
     Parameters
     ----------
-    slider_min : int or float, optional, default to 0
+    slider_min : int or float, optional, defaults to 0
         Minimal position of the slider.
-    slider_max : int or float, optional, default to 1
+    slider_max : int or float, optional, defaults to 1
         Maximal position of the slider.
-    slider_init : int, float or None, optional
+    slider_init : int, float or None, optional, defaults to 0
         Initial position of the slider. If None, the initial position will be set to the midpoint between minimal and
         maximal positions.
     slide_fn : callable, optional
-        Handler is triggered when the FloatSlider value is changed.
+        Handler is triggered when the widgets.FloatSlider value is changed.
     reset_fn : callable, optional
-        Button handler to reset the FloatSlider to its initial position.
+        Button handler to reset the widgets.FloatSlider to its initial position.
     slider_kwargs : dict, optional
-        Additional arguments for the FloatSlider.
+        Additional arguments for the widgets.FloatSlider.
     plot_fn : callable or list of callable, optional
         One or more plotters each accepting a single keyword argument `ax`. If more than one plotter is given, an extra
         button for view switching is displayed. If not given, an empty plot is created.
@@ -895,9 +898,6 @@ class SlidingPlot(InteractivePlot):
         self.reset_fn = reset_fn
         self.slider_init = slider_init
 
-        self.min_widget = widgets.HTML(value=str(slider_min), layout=widgets.Layout(height=WIDGET_HEIGHT))
-        self.max_widget = widgets.HTML(value=str(slider_max), layout=widgets.Layout(height=WIDGET_HEIGHT))
-
         default_slider_kwargs = {
             "step": 1,
             "readout": False,
@@ -906,10 +906,11 @@ class SlidingPlot(InteractivePlot):
         slider_kwargs = {**default_slider_kwargs, **(slider_kwargs if slider_kwargs is not None else {})}
         self.slider = widgets.FloatSlider(value=slider_init, min=slider_min, max=slider_max, **slider_kwargs)
         self.slider.observe(self.on_slider_change, "value")
-        self.reset_button = widgets.Button(icon="undo", tooltip="Reset to default value", disabled=False,
+        self.reset_button = widgets.Button(icon="undo", tooltip="Reset to default value",
                                            layout=widgets.Layout(**BUTTON_LAYOUT))
         self.reset_button.on_click(self.on_reset)
-
+        self.min_widget = widgets.HTML(value=str(self.slider.min), layout=widgets.Layout(height=WIDGET_HEIGHT))
+        self.max_widget = widgets.HTML(value=str(self.slider.max), layout=widgets.Layout(height=WIDGET_HEIGHT))
         self.slider_box = widgets.HBox([self.min_widget, self.slider, self.max_widget, self.reset_button],
                                        layout=widgets.Layout(width="90%", margin="auto"))
         super().__init__(**kwargs)
@@ -932,7 +933,7 @@ class SlidingPlot(InteractivePlot):
         """Change slider limits and initial value."""
         current_min = self.slider.min
         # Reset slider's min bound to prevent an error when `max` < `current_min`
-        self.slider.min = -np.finfo(np.float64).max
+        self.slider.min = np.finfo(np.float64).min
         if max is not None:
             self.slider.max = max
         self.slider.min = current_min if min is None else min
