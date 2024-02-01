@@ -258,19 +258,22 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
                            self.save_button]
         return box_type(self.construct_extra_buttons() + toolbar_buttons)
 
-    def _connect_widgets(self, first, second, position):
+    def _attach_widget(self, widget, widget_to_attach, position, **kwargs):
+        """Construct flexible box from two provided widgets. `position` argument defines widgets relation, thus
+        `position="top"` for example, results in flexible box where `widget_to_attach` will be placed on top of
+        the `widget`."""
         if position == "top":
-            return widgets.VBox([first, second])
+            return widgets.VBox([widget, widget_to_attach], **kwargs)
         if position == "bottom":
-            return widgets.VBox([second, first])
+            return widgets.VBox([widget_to_attach, widget], **kwargs)
         if position == "left":
-            return widgets.HBox([first, second])
-        return widgets.HBox([second, first])
+            return widgets.HBox([widget, widget_to_attach], **kwargs)
+        return widgets.HBox([widget_to_attach, widget], **kwargs)
 
     def construct_box(self):
         """Construct the box of the whole plot which contains figure canvas, header and a toolbar."""
         titled_box = widgets.HBox([widgets.VBox([self.header, self.fig.canvas])])
-        return self._connect_widgets(self.toolbar, titled_box, position=self.toolbar_position)
+        return self._attach_widgets(self.toolbar, titled_box, position=self.toolbar_position)
 
     # Event handlers
 
@@ -759,7 +762,7 @@ class ToggleButtonsPlot(InteractivePlot):
     ax : matplotlib.axes.Axes
         Axes of the figure to plot views on.
     box : ipywidgets.widgets.widget_box.Box
-        Main container that stores figure canvas, plot title, created buttons and, optionally, a toolbar.
+        Main container that stores figure canvas, plot title, created toggle buttons and a toolbar.
     n_views : int
         The number of plot views.
     current_view : int
@@ -803,17 +806,19 @@ class ToggleButtonsPlot(InteractivePlot):
         toolbar = super().construct_toolbar()
         button_box_type = widgets.HBox if self.toolbar_position in {"top", "bottom"} else widgets.VBox
         buttons = button_box_type(self.view_toggle_buttons)
-        return self._connect_widgets(buttons, toolbar, position=self.buttons_position)
+        return self._attach_widgets(buttons, toolbar, position=self.buttons_position)
 
     def on_button_toggle(self, event):
         """Switch the plot to the view corresponding to the pressed button."""
         pressed_button = event["owner"]
+        pressed_button.disabled = True  # Disable pressed button to avoid multiple clicks to the same view
         for ix, button in enumerate(self.view_toggle_buttons):
             if button is pressed_button:
                 self.set_view(ix)
             else:  # Disable if button is not pressed
                 button.unobserve_all()  # Avoid recursion during value setting
                 button.value = False
+                button.disabled = False
                 button.observe(self.on_button_toggle, "value")
 
 
@@ -832,13 +837,14 @@ class SlidingPlot(InteractivePlot):
 
     Parameters
     ----------
-    slider_min : int or float, optional, defaults to 0
+    slider_min : int or float
         Minimal position of the slider.
-    slider_max : int or float, optional, defaults to 1
+    slider_max : int or float
         Maximal position of the slider.
-    slider_init : int, float or None, optional, defaults to 0
-        Initial position of the slider. If None, the initial position will be set to the midpoint between minimal and
-        maximal positions.
+    slider_init : int, float or None, optional
+        Initial position of the slider. If None, the initial position will be set to the minimal position.
+    slider_step : int, float, optional
+        Step of the trackbar.
     slide_fn : callable, optional
         Handler is triggered when the widgets.FloatSlider value is changed.
     reset_fn : callable, optional
@@ -890,29 +896,29 @@ class SlidingPlot(InteractivePlot):
     current_view : int
         An index of the current plot view.
     slider_init : int or float
-        Initial position of the slider.
+        Initial position of the slider. One can use it in `self.reset_fn` to reset slider to the initial position.
     """
-    def __init__(self, *, slider_min=0, slider_max=1, slider_init=0, slide_fn=None, reset_fn=None, slider_kwargs=None,
-                 **kwargs):
+    def __init__(self, *, slider_min, slider_max, slider_init=None, slider_step=None, slide_fn=None, reset_fn=None,
+                 slider_kwargs=None, **kwargs):
         self.slide_fn = slide_fn
         self.reset_fn = reset_fn
         self.slider_init = slider_init
 
         default_slider_kwargs = {
-            "step": 1,
             "readout": False,
             "layout": widgets.Layout(flex="1 1 auto", height=WIDGET_HEIGHT)
         }
-        slider_kwargs = {**default_slider_kwargs, **(slider_kwargs if slider_kwargs is not None else {})}
-        self.slider = widgets.FloatSlider(value=slider_init, min=slider_min, max=slider_max, **slider_kwargs)
+        slider_params = {"value": slider_init, "min": slider_min, "max": slider_max, "step": slider_step}
+        slider_kwargs = slider_kwargs if slider_kwargs is not None else {}
+        self.slider = widgets.FloatSlider(**{**default_slider_kwargs, **slider_kwargs, **slider_params})
         self.slider.observe(self.on_slider_change, "value")
         self.reset_button = widgets.Button(icon="undo", tooltip="Reset to default value",
                                            layout=widgets.Layout(**BUTTON_LAYOUT))
         self.reset_button.on_click(self.on_reset)
-        self.min_widget = widgets.HTML(value=str(self.slider.min), layout=widgets.Layout(height=WIDGET_HEIGHT))
-        self.max_widget = widgets.HTML(value=str(self.slider.max), layout=widgets.Layout(height=WIDGET_HEIGHT))
+        self.min_widget = widgets.HTML(value=str(slider_min), layout=widgets.Layout(height=WIDGET_HEIGHT))
+        self.max_widget = widgets.HTML(value=str(slider_max), layout=widgets.Layout(height=WIDGET_HEIGHT))
         self.slider_box = widgets.HBox([self.min_widget, self.slider, self.max_widget, self.reset_button],
-                                       layout=widgets.Layout(width="90%", margin="auto"))
+                                        layout=widgets.Layout(width="90%", margin="auto"))
         super().__init__(**kwargs)
 
     def on_slider_change(self, event):
@@ -929,20 +935,19 @@ class SlidingPlot(InteractivePlot):
         """Append the slider below the plot header."""
         return widgets.VBox([super().construct_header(), self.slider_box], layout=widgets.Layout(overflow="hidden"))
 
-    def set_slider(self, min=None, max=None, init=None):
-        """Change slider limits and initial value."""
-        current_min = self.slider.min
-        # Reset slider's min bound to prevent an error when `max` < `current_min`
-        self.slider.min = np.finfo(np.float64).min
-        if max is not None:
-            self.slider.max = max
-        self.slider.min = current_min if min is None else min
+    def set_slider(self, value=None, min=None, max=None, step=None, **kwargs):
+        """Change value, limits, step or other slider state."""
+        min = self.slider.min if min is None else min
+        max = self.slider.max if max is None else max
+        step = self.slider.step if step is None else step
+        if value is None:
+            current_value = self.slider.value
+            value = (min + max) / 2 if min > current_value or max < current_value else current_value
 
+        self.slider.set_state({"min": min, "max": max, "value": value, "step": step, **kwargs})
+        self.slider_init = value
         self.max_widget.value = str(self.slider.max)
         self.min_widget.value = str(self.slider.min)
-        init = (self.slider.max + self.slider.min) / 2 if init is None else init
-        self.slider.value = init
-        self.slider_init = init
 
 
 class PairedPlot:
