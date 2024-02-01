@@ -273,7 +273,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
     def construct_box(self):
         """Construct the box of the whole plot which contains figure canvas, header and a toolbar."""
         titled_box = widgets.HBox([widgets.VBox([self.header, self.fig.canvas])])
-        return self._attach_widgets(self.toolbar, titled_box, position=self.toolbar_position)
+        return self._attach_widget(self.toolbar, titled_box, position=self.toolbar_position)
 
     # Event handlers
 
@@ -806,7 +806,7 @@ class ToggleButtonsPlot(InteractivePlot):
         toolbar = super().construct_toolbar()
         button_box_type = widgets.HBox if self.toolbar_position in {"top", "bottom"} else widgets.VBox
         buttons = button_box_type(self.view_toggle_buttons)
-        return self._attach_widgets(buttons, toolbar, position=self.buttons_position)
+        return self._attach_widget(buttons, toolbar, position=self.buttons_position)
 
     def on_button_toggle(self, event):
         """Switch the plot to the view corresponding to the pressed button."""
@@ -846,7 +846,7 @@ class SlidingPlot(InteractivePlot):
     slider_step : int, float, optional
         Step of the trackbar.
     slide_fn : callable, optional
-        Handler is triggered when the widgets.FloatSlider value is changed.
+        Handler is triggered on widgets.FloatSlider move.
     reset_fn : callable, optional
         Button handler to reset the widgets.FloatSlider to its initial position.
     slider_kwargs : dict, optional
