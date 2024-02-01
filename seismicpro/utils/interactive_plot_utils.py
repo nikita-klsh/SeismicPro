@@ -3,7 +3,6 @@
 from time import time
 from functools import partial
 
-import numpy as np
 import matplotlib.pyplot as plt
 
 from .general_utils import to_list, get_first_defined, align_args, MissingModule

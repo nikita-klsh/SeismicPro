@@ -2,14 +2,8 @@
 
 from functools import partial
 
-from ..utils.interactive_plot_utils import WIDGET_HEIGHT, SlidingPlot
-from ..utils import MissingModule, as_dict
-
-# Safe import of modules for interactive plotting
-try:
-    from ipywidgets import widgets
-except ImportError:
-    widgets = MissingModule("ipywidgets")
+from ..utils import as_dict
+from ..utils.interactive_plot_utils import SlidingPlot
 
 
 class SlidingVelocityPlot(SlidingPlot):
