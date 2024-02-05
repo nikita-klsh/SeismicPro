@@ -7,15 +7,17 @@ from numba import jit_module, prange
 
 def stacked_amplitude(corrected_gather, amplify_factor=0, abs=True):
     numerator = np.nansum(corrected_gather)
+    denominator = 1
     if abs:
         numerator = np.abs(numerator)
     n = max(np.sum(~np.isnan(corrected_gather)), np.int64(1))
     numerator = numerator * ((amplify_factor / np.sqrt(n)) + ((1 - amplify_factor) / n))
-    return numerator, 1
+    return numerator, denominator
 
 
 def stacked_amplitude_sum(corrected_gather):
-    return np.nansum(corrected_gather), 1
+    denominator = 1
+    return np.nansum(corrected_gather), denominator
 
 
 def normalized_stacked_amplitude(corrected_gather):

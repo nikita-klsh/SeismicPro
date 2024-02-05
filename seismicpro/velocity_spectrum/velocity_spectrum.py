@@ -13,13 +13,14 @@ from ..containers import SamplesContainer
 from ..decorators import batch_method, plotter
 from ..stacking_velocity import StackingVelocity, StackingVelocityField
 from ..utils import get_first_defined, VFUNC
-from ..gather.utils.correction import apply_constant_time_velocity_nmo, apply_constant_time_velocity_lmo#apply_constant_velocity_nmo, apply_constant_velocity_lmo,
+from ..gather.utils.correction import apply_constant_time_velocity_nmo, apply_constant_time_velocity_lmo
 from ..const import DEFAULT_STACKING_VELOCITY
 
 
 COHERENCY_FUNCS = {
     "stacked_amplitude": coherency_funcs.stacked_amplitude,
     "S": coherency_funcs.stacked_amplitude,
+    "SS": coherency_funcs.stacked_amplitude_sum,
     "normalized_stacked_amplitude": coherency_funcs.normalized_stacked_amplitude,
     "NS": coherency_funcs.normalized_stacked_amplitude,
     "semblance": coherency_funcs.semblance,
@@ -52,9 +53,11 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
 
     @staticmethod
     @njit(nogil=True, fastmath=True, parallel=True)
-    def _calc_spectrum_numba(coherency_func, correction_type, gather_data, times, offsets, velocities, time_index,
-                             spectrum_mask, sample_interval, delay, half_win_size_samples, max_stretch_factor,
-                             interpolate):
+    def calculate_spectrum_numba(coherency_func, correction_type, gather_data, times, offsets, velocities, time_index,
+                                 spectrum_mask, sample_interval, delay, half_win_size_samples, max_stretch_factor,
+                                 interpolate):
+        if correction_type not in {"NMO", "LMO"}:
+            raise ValueError(f'correction_type should be either "NMO" or "LMO, not {correction_type}')
         n_vels = len(velocities)
         t_min_ix = 0 if time_index is None else time_index
         t_max_ix = len(times) if time_index is None else time_index + 1
@@ -76,18 +79,16 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
             if spectrum_mask is not None:
                 ix_from = max(0, time_ix_pos - half_win_size_samples + 1)
                 ix_to = min(len(times), time_ix_pos + half_win_size_samples + 1)
-                if not np.any(spectrum_mask[ix_from : ix_to, vel_ix]):
+                if not np.any(spectrum_mask[ix_from: ix_to, vel_ix]):
                     continue
 
-            # if correction_type == "NMO":
-            hodograph = apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, delay,
-                                                            times[time_ix_pos], velocities[vel_ix],
-                                                            max_stretch_factor, interpolate)
-            # elif correction_type == "LMO":
-            #     hodograph = apply_constant_time_velocity_lmo(gather_data, offsets, sample_interval, delay,
-            #                                                  times[time_ix_pos], velocities[vel_ix], interpolate)
-            # else:
-            #     raise ValueError()
+            hodograph = np.empty(len(offsets), dtype=gather_data.dtype)
+            if correction_type == "NMO":
+                apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, delay, times[time_ix_pos],
+                                                 velocities[vel_ix], max_stretch_factor, interpolate, out=hodograph)
+            else:
+                apply_constant_time_velocity_lmo(gather_data, offsets, sample_interval, delay, times[time_ix_pos],
+                                                 velocities[vel_ix], interpolate, out=hodograph)
 
             numerator, denominator = coherency_func(hodograph)
             numerators[time_ix, vel_ix] = numerator
@@ -101,11 +102,11 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
             vel_ix = np.int32(vel_ix)
 
             if spectrum_mask is not None and not spectrum_mask[time_ix, vel_ix]:
-                    continue
+                continue
 
             t_rel = time_ix + t_min_ix - t_win_size_min_ix
             ix_from = max(0, t_rel - half_win_size_samples)
-            ix_to = min(t_max_ix, t_rel + half_win_size_samples)
+            ix_to = min(t_max_ix, t_rel + half_win_size_samples + 1)
             spectrum_numerator = np.sum(numerators[ix_from : ix_to, vel_ix])
             spectrum_denominator = np.sum(denominators[ix_from : ix_to, vel_ix])
             velocity_spectrum[time_ix, vel_ix] = spectrum_numerator / (spectrum_denominator + 1e-8)
@@ -283,18 +284,15 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
             velocities = cls.get_velocity_range(gather.times, stacking_velocity, relative_margin, velocity_step)
         else:
             velocities = np.sort(velocities)
-
         velocities = np.asarray(velocities, dtype=np.float32)  # m/s
-
         velocities_ms = velocities / 1000  # from m/s to m/ms
+
         kwargs = {"coherency_func": coherency_func, "correction_type": cls.correction_type,
                   "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets, "time_index": None,
-                  "spectrum_mask": None,
-                  "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
-                  "half_win_size_samples": half_win_size_samples, "interpolate": interpolate,
+                  "spectrum_mask": None, "velocities": velocities_ms, "sample_interval": gather.sample_interval,
+                  "delay": gather.delay, "half_win_size_samples": half_win_size_samples, "interpolate": interpolate,
                   "max_stretch_factor": max_stretch_factor}
-
-        velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
+        velocity_spectrum = cls.calculate_spectrum_numba(**kwargs)
         spectrum = cls(velocity_spectrum, velocities, gather)
 
         spectrum.stacking_velocity = stacking_velocity
@@ -527,16 +525,16 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
         if isinstance(stacking_velocity, StackingVelocityField):
             stacking_velocity = stacking_velocity(gather.coords)
-
         stacking_velocities = stacking_velocity(gather.times)
-        kwargs = {"spectrum_func": cls._calc_spectrum_numba, "coherency_func": coherency_func, "correction_type": cls.correction_type,
-                  "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
-                  "stacking_velocities": stacking_velocities, "relative_margin": relative_margin,
-                  "velocity_step": velocity_step, "sample_interval": gather.sample_interval, "delay": gather.delay,
+
+        kwargs = {"spectrum_func": cls.calculate_spectrum_numba, "coherency_func": coherency_func,
+                  "correction_type": cls.correction_type, "gather_data": gather.data, "times": gather.times,
+                  "offsets": gather.offsets, "stacking_velocities": stacking_velocities,
+                  "relative_margin": relative_margin, "velocity_step": velocity_step,
+                  "sample_interval": gather.sample_interval, "delay": gather.delay,
                   "half_win_size_samples": half_win_size_samples, "interpolate": interpolate,
                   "correction_type": cls.correction_type, "max_stretch_factor": max_stretch_factor}
-
-        velocity_spectrum = cls._calc_residual_spectrum_numba(**kwargs)
+        velocity_spectrum = cls.calculate_residual_spectrum_numba(**kwargs)
         margins = np.linspace(-relative_margin, relative_margin, velocity_spectrum.shape[1])
         spectrum = cls(velocity_spectrum, margins, gather)
 
@@ -548,9 +546,9 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
     @staticmethod
     @njit(nogil=True, fastmath=True, parallel=True)
-    def _calc_residual_spectrum_numba(spectrum_func, coherency_func, correction_type, gather_data, times, offsets,
-                                      stacking_velocities, relative_margin, velocity_step, sample_interval, delay,
-                                      half_win_size_samples, max_stretch_factor, interpolate):
+    def calculate_residual_spectrum_numba(spectrum_func, coherency_func, correction_type, gather_data, times, offsets,
+                                          stacking_velocities, relative_margin, velocity_step, sample_interval, delay,
+                                          half_win_size_samples, max_stretch_factor, interpolate):
         """Parallelized and njitted method for residual vertical velocity spectrum calculation.
 
         Parameters
@@ -713,14 +711,13 @@ class SlantStack(BaseVelocitySpectrum):
 
         kwargs = {"coherency_func": coherency_funcs.stacked_amplitude_sum, "correction_type": cls.correction_type,
                   "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets, "time_index": None,
-                  "spectrum_mask": None,
-                  "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
-                  "half_win_size_samples": 0, "interpolate": True,
-                  "max_stretch_factor": np.inf}
-
-        velocity_spectrum = cls._calc_spectrum_numba(**kwargs)
+                  "spectrum_mask": None, "velocities": velocities_ms, "sample_interval": gather.sample_interval,
+                  "delay": gather.delay, "half_win_size_samples": 0, "interpolate": True, "max_stretch_factor": np.inf}
+        velocity_spectrum = cls.calculate_spectrum_numba(**kwargs)
+        # print(velocity_spectrum.sum())
         spectrum = cls(velocity_spectrum, velocities, gather)
         return spectrum
+        # return cls(velocity_spectrum, velocities, gather)
 
     @plotter(figsize=(10, 9))
     def plot(self, interactive=False, title=None, **kwargs):
