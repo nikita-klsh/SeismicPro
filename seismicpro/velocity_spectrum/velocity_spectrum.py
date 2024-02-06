@@ -7,7 +7,7 @@ import numpy as np
 from numba import njit, prange
 
 from .utils import coherency_funcs
-from .interactive_plot import VerticalVelocitySpectrumPlot, RedidualVelocitySpectrumPlot, SlantStackPlot
+from .interactive_plot import VerticalVelocitySpectrumPlot, ResidualVelocitySpectrumPlot, SlantStackPlot
 from ..spectrum import Spectrum
 from ..containers import SamplesContainer
 from ..decorators import batch_method, plotter
@@ -641,7 +641,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
 
         if not interactive:
             return super().plot(**plot_kwargs)
-        return RedidualVelocitySpectrumPlot(self, **plot_kwargs).plot()
+        return ResidualVelocitySpectrumPlot(self, **plot_kwargs).plot()
 
 
 class SlantStack(BaseVelocitySpectrum):

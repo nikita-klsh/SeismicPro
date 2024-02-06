@@ -152,7 +152,7 @@ class SlantStackPlot(VelocitySpectrumPlot):
         return t0 + x/v
 
 
-class RedidualVelocitySpectrumPlot(VerticalVelocitySpectrumPlot):
+class ResidualVelocitySpectrumPlot(VerticalVelocitySpectrumPlot):
     """Interactive Residual Velocity Spectrum plot."""
 
     def get_velocity_time_by_coords(self, coords):
