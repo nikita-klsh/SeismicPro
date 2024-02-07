@@ -753,7 +753,7 @@ class Gather(TraceContainer, SamplesContainer):
     #             Vertical Velocity Spectrum calculation methods             #
     #------------------------------------------------------------------------#
 
-    @batch_method(target="for", args_to_unpack="stacking_velocity", copy_src=False)
+    @batch_method(target="threads", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_vertical_velocity_spectrum(self, velocities=None, stacking_velocity=None, relative_margin=0.2,
                                              velocity_step=50, window_size=50, mode='semblance',
                                              max_stretch_factor=np.inf, interpolate=True):
@@ -825,7 +825,7 @@ class Gather(TraceContainer, SamplesContainer):
                   'max_stretch_factor': max_stretch_factor, 'interpolate': interpolate}
         return VerticalVelocitySpectrum.from_gather(self, **kwargs)
 
-    @batch_method(target="for", args_to_unpack="stacking_velocity", copy_src=False)
+    @batch_method(target="threads", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_residual_velocity_spectrum(self, stacking_velocity, relative_margin=0.2, velocity_step=25,
                                              window_size=50, mode="semblance", max_stretch_factor=np.inf,
                                              interpolate=True):
@@ -885,7 +885,7 @@ class Gather(TraceContainer, SamplesContainer):
                   'max_stretch_factor': max_stretch_factor, 'interpolate': interpolate}
         return ResidualVelocitySpectrum.from_gather(self, **kwargs)
 
-    @batch_method(target="for", copy_src=False)
+    @batch_method(target="threads", copy_src=False)
     def calculate_slant_stack(self, velocities=None):
         """Calculate slant stack transform of the gather.
 
