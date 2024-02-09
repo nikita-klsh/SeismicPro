@@ -891,8 +891,8 @@ class SlidingPlot(InteractivePlot):
     def __init__(self, *, slider_min, slider_max, slider_init=None, slider_step=None, slide_fn=None, reset_fn=None,
                  slider_kwargs=None, **kwargs):
         self.slide_fn = slide_fn
-        self.reset_fn = self.default_reset_fn if reset_fn is None else reset_fn
-        self.slider_init = slider_init
+        self.reset_fn = reset_fn
+        self.slider_init = slider_min if slider_init is None else slider_init
 
         default_slider_kwargs = {
             "readout": False,
