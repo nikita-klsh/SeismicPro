@@ -109,7 +109,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
 
             if spectrum_mask is not None:
                 # Calculate spectrum only within `spectrum_mask`, considering temporal window
-                ix_from = max(0, time_ix - half_win_size_samples + 1)
+                ix_from = max(0, time_ix - half_win_size_samples)
                 ix_to = min(len(times), time_ix + half_win_size_samples + 1)
                 if not np.any(spectrum_mask[ix_from: ix_to, vel_ix]):
                     continue
