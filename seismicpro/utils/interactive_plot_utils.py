@@ -257,22 +257,10 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
                            self.save_button]
         return box_type(self.construct_extra_buttons() + toolbar_buttons)
 
-    def _attach_widget(self, widget, widget_to_attach, position, **kwargs):
-        """Construct flexible box from two provided widgets. `position` argument defines widgets relation, thus
-        `position="top"` for example, results in flexible box where `widget_to_attach` will be placed on top of
-        the `widget`."""
-        if position == "top":
-            return widgets.VBox([widget_to_attach, widget], **kwargs)
-        if position == "bottom":
-            return widgets.VBox([widget, widget_to_attach], **kwargs)
-        if position == "left":
-            return widgets.HBox([widget_to_attach, widget], **kwargs)
-        return widgets.HBox([widget, widget_to_attach], **kwargs)
-
     def construct_box(self):
         """Construct the box of the whole plot which contains figure canvas, header and a toolbar."""
         titled_box = widgets.HBox([widgets.VBox([self.header, self.fig.canvas])])
-        return self._attach_widget(titled_box, self.toolbar, position=self.toolbar_position)
+        return attach_widget(titled_box, self.toolbar, position=self.toolbar_position)
 
     # Event handlers
 
@@ -807,7 +795,7 @@ class ToggleButtonsPlot(InteractivePlot):
         toolbar = super().construct_toolbar()
         button_box_type = widgets.HBox if self.toolbar_position in {"top", "bottom"} else widgets.VBox
         buttons = button_box_type(self.view_toggle_buttons)
-        return self._attach_widget(toolbar, buttons, position=self.buttons_position)
+        return attach_widget(toolbar, buttons, position=self.buttons_position)
 
     def on_button_toggle(self, event):
         """Switch the plot to the view corresponding to the pressed button."""
@@ -849,7 +837,8 @@ class SlidingPlot(InteractivePlot):
     slide_fn : callable, optional
         Handler is triggered on widgets.FloatSlider move.
     reset_fn : callable, optional
-        Button handler to reset the widgets.FloatSlider to its initial position.
+        Button handler to reset the widgets.FloatSlider to its initial position. If not provided, the slider will be
+        set to `slider_init` position and the axis will be redrawn.
     slider_kwargs : dict, optional
         Additional arguments for the widgets.FloatSlider.
     plot_fn : callable or list of callable, optional
@@ -902,7 +891,7 @@ class SlidingPlot(InteractivePlot):
     def __init__(self, *, slider_min, slider_max, slider_init=None, slider_step=None, slide_fn=None, reset_fn=None,
                  slider_kwargs=None, **kwargs):
         self.slide_fn = slide_fn
-        self.reset_fn = reset_fn
+        self.reset_fn = self.default_reset_fn if reset_fn is None else reset_fn
         self.slider_init = slider_init
 
         default_slider_kwargs = {
@@ -930,7 +919,13 @@ class SlidingPlot(InteractivePlot):
     def on_reset(self, event):
         """Reset slider to its initial value."""
         if self.reset_fn is not None:
-            self.reset_fn(event)
+            return self.reset_fn(event)
+        return self.default_reset_fn()
+
+    def default_reset_fn(self):
+        """Reset slider to `slider_init` and redraw axis."""
+        self.slider.value = self.slider_init
+        self.redraw()
 
     def construct_header(self):
         """Append the slider below the plot header."""
@@ -998,3 +993,16 @@ class PairedPlot:
         self.main.plot(display_box=False)
         self.aux.plot(display_box=False)
         display(self.box)
+
+
+def attach_widget(widget, widget_to_attach, position, **kwargs):
+    """Construct flexible box from two provided widgets. `position` argument defines widgets relation, thus
+    `position="top"` for example, results in flexible box where `widget_to_attach` will be placed on top of
+    the `widget`."""
+    if position == "top":
+        return widgets.VBox([widget_to_attach, widget], **kwargs)
+    if position == "bottom":
+        return widgets.VBox([widget, widget_to_attach], **kwargs)
+    if position == "left":
+        return widgets.HBox([widget_to_attach, widget], **kwargs)
+    return widgets.HBox([widget, widget_to_attach], **kwargs)
