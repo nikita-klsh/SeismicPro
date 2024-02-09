@@ -262,17 +262,17 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         `position="top"` for example, results in flexible box where `widget_to_attach` will be placed on top of
         the `widget`."""
         if position == "top":
-            return widgets.VBox([widget, widget_to_attach], **kwargs)
-        if position == "bottom":
             return widgets.VBox([widget_to_attach, widget], **kwargs)
+        if position == "bottom":
+            return widgets.VBox([widget, widget_to_attach], **kwargs)
         if position == "left":
-            return widgets.HBox([widget, widget_to_attach], **kwargs)
-        return widgets.HBox([widget_to_attach, widget], **kwargs)
+            return widgets.HBox([widget_to_attach, widget], **kwargs)
+        return widgets.HBox([widget, widget_to_attach], **kwargs)
 
     def construct_box(self):
         """Construct the box of the whole plot which contains figure canvas, header and a toolbar."""
         titled_box = widgets.HBox([widgets.VBox([self.header, self.fig.canvas])])
-        return self._attach_widget(self.toolbar, titled_box, position=self.toolbar_position)
+        return self._attach_widget(titled_box, self.toolbar, position=self.toolbar_position)
 
     # Event handlers
 
@@ -718,10 +718,10 @@ class ToggleButtonsPlot(InteractivePlot):
     ----------
     plot_fn : callable or list of callable, optional
         One or more plotters each accepting a single keyword argument `ax`. If not given, an empty plot is created.
-    names : list of str or None, optional
+    names : src or list of str or None, optional
         List of descriptions displayed on the toggle buttons. If None, numbers started from 1 to n_views will be used.
-        If `icons` is not None, this parameter will be ommited.
-    icons : list of str or None, optional
+        If `icons` is not None, this parameter will be omitted.
+    icons : src or list of str or None, optional
         List of font-awesome icon names for each toggle button.
     buttons_position : {"top", "bottom", "left", "right"}, optional, defaults to "right"
         Toggle buttons position relative to the toolbar.
@@ -772,10 +772,12 @@ class ToggleButtonsPlot(InteractivePlot):
     def __init__(self, *, plot_fn=None, names=None, icons=None, buttons_position="right", **kwargs):
         plot_fn_list = to_list(plot_fn)
         if icons is not None:
+            icons = to_list(names)
             if len(icons) != len(plot_fn_list):
                 raise ValueError("The length of `icons` must match number of views")
             buttons_kwargs = [{"icon": icon} for icon in icons]
         elif names is not None:
+            names = to_list(names)
             if len(names) != len(plot_fn_list):
                 raise ValueError("The length of `names` must match number of views")
             buttons_kwargs = [{"description": name} for name in names]
@@ -805,7 +807,7 @@ class ToggleButtonsPlot(InteractivePlot):
         toolbar = super().construct_toolbar()
         button_box_type = widgets.HBox if self.toolbar_position in {"top", "bottom"} else widgets.VBox
         buttons = button_box_type(self.view_toggle_buttons)
-        return self._attach_widget(buttons, toolbar, position=self.buttons_position)
+        return self._attach_widget(toolbar, buttons, position=self.buttons_position)
 
     def on_button_toggle(self, event):
         """Switch the plot to the view corresponding to the pressed button."""
@@ -824,8 +826,8 @@ class ToggleButtonsPlot(InteractivePlot):
 class SlidingPlot(InteractivePlot):
     """Construct an interactive plot with FloatSlider and optional click handling.
 
-    A FloatSlider is located between the header and canvas of the plot. The limits of the slider can be changed by
-    either with `__init__` or `self.set_slider`.
+    A FloatSlider is located between the header and canvas of the plot. The limits of the slider can be changed either
+    with `__init__` or `self.set_slider`.
 
     The plot may contain multiple views: one for each of the passed `plot_fn`. If more than one view is defined, an
     extra button is created in the toolbar to iterate over them. The plot is interactive: it can handle click and slice
@@ -921,7 +923,7 @@ class SlidingPlot(InteractivePlot):
         super().__init__(**kwargs)
 
     def on_slider_change(self, event):
-        """Hangle slider value on its change."""
+        """Handle slider value on its change."""
         if self.slide_fn is not None:
             self.slide_fn(event)
 
