@@ -19,7 +19,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from .cropped_gather import CroppedGather
 from .plot_corrections import NMOCorrectionPlot, LMOCorrectionPlot
 from .utils import correction, normalization, gain
-from .utils import convert_times_to_mask, convert_mask_to_pick, mute_gather, make_origins
+from .utils import convert_times_to_mask, convert_mask_to_pick, mute_gather, make_origins, compute_stacked_amplitude
 from ..utils import (to_list, get_coords_cols, get_first_defined, set_ticks, format_subplot_yticklabels,
                      set_text_formatting, add_colorbar, piecewise_polynomial, Coordinates)
 from ..containers import TraceContainer, SamplesContainer
@@ -29,7 +29,6 @@ from ..stacking_velocity import StackingVelocity, StackingVelocityField
 from ..refractor_velocity import RefractorVelocity, RefractorVelocityField
 from ..decorators import batch_method, plotter
 from ..const import HDR_FIRST_BREAK, HDR_TRACE_POS, DEFAULT_STACKING_VELOCITY
-from ..velocity_spectrum.utils.coherency_funcs import stacked_amplitude
 
 
 class Gather(TraceContainer, SamplesContainer):
@@ -1080,7 +1079,7 @@ class Gather(TraceContainer, SamplesContainer):
         """
         amplify_factor = np.clip(amplify_factor, 0, 1)
         self.headers = self.headers.iloc[[0]]  # Preserve headers of the first trace of the gather being stacked
-        self.data = stacked_amplitude(self.data, amplify_factor, abs=False)[0].reshape(1, -1)
+        self.data = compute_stacked_amplitude(self.data, amplify_factor, abs=False)[0].reshape(1, -1)
         return self
 
     def crop(self, origins, crop_shape, n_crops=1, stride=None, pad_mode='constant', **kwargs):

@@ -2,6 +2,7 @@
 
 import numpy as np
 from numba import njit, prange
+from ...velocity_spectrum.utils import stacked_amplitude
 
 
 @njit(nogil=True)
@@ -128,3 +129,13 @@ def mute_gather(gather_data, muting_times, sample_interval, delay, fill_value):
     mask = mask.reshape(-1)
     gather_data[~mask] = fill_value
     return gather_data.reshape(data_shape)
+
+
+@njit(nogil=True, parallel=True)
+def compute_stacked_amplitude(corrected_gather, amplify_factor=0, abs=True):
+    """Calculate the stacked amplitude coherency for the given data."""
+    numerator = np.empty_like(corrected_gather[0])
+    denominator = np.ones_like(corrected_gather[0])
+    for i in prange(corrected_gather.shape[1]):
+        numerator[i] = stacked_amplitude(corrected_gather[:, i], amplify_factor=amplify_factor, abs=abs)[0]
+    return numerator, denominator

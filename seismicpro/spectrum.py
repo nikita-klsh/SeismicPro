@@ -85,7 +85,7 @@ class Spectrum:
         vfunc: VFUNC, iterable of VFUNC, optional, defaults to None
             VFUNCs to be plotted on the spectrum.
         align_vfunc: bool, optional, defaults to True
-            Whether aligh (cut or extend) VFUNC y_axis to spectrum y_axis.
+            Whether to align (cut or extend) VFUNC y_axis to spectrum y_axis.
         plot_bounds: bool, optional, defaults to True
             Whether to plot vfunc bounds, if exist.
         grid : bool, optional, defaults to False
