@@ -1,3 +1,3 @@
-"""Implements VerticalVelocitySpectrum and ResidualVelocitySpectrum classes. """
+"""Implements VerticalVelocitySpectrum, ResidualVelocitySpectrum and SlantStack classes. """
 
-from .velocity_spectrum import VerticalVelocitySpectrum, ResidualVelocitySpectrum
+from .velocity_spectrum import VerticalVelocitySpectrum, ResidualVelocitySpectrum, SlantStack
