@@ -2,7 +2,7 @@
 
 # pylint: disable=not-an-iterable, missing-function-docstring
 import numpy as np
-from numba import jit_module, prange
+from numba import jit_module
 
 
 def stacked_amplitude(corrected_gather, amplify_factor=0, abs=True):
