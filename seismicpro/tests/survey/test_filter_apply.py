@@ -22,7 +22,7 @@ class TestFilter:
         # Select only the first trace
         survey_filtered = survey.filter(lambda df: pd.DataFrame([True] + [False] * (len(df) - 1)), cols=cols,
                                         axis=None, unpack_args=False, inplace=inplace)
-        survey_copy.headers = survey_copy.headers.iloc[:1]
+        survey_copy.headers = survey_copy.headers.iloc[[0]]
         assert_surveys_equal(survey_copy, survey_filtered)
         assert_survey_processed_inplace(survey, survey_filtered, inplace)
 
@@ -91,7 +91,7 @@ class TestFilter:
         """Test a case, when `filter` returns an empty `Survey`."""
         survey_filtered = survey.filter(cond, cols="offset", axis=axis, unpack_args=unpack_args, inplace=False)
         survey_copy = survey.copy()
-        survey_copy.headers = survey_copy.headers.iloc[0:0]
+        survey_copy.headers = survey_copy.headers.loc[[False] * len(survey_copy.headers)]
         assert_surveys_equal(survey_copy, survey_filtered)
 
     def test_wrong_shape_fail(self, survey):
