@@ -113,7 +113,7 @@ jobs:
         pip install --user -U wheel pipenv
         pipenv --python ${{ matrix.python-version }}
         pipenv install pytest
-        pipenv install git+https://github.com/${{ github.event.repository.full_name }}.git@${{ github.sha }}#egg=SeismicPro
+        pipenv install git+https://${{ github.token }}@github.com/${{ github.event.repository.full_name }}.git@${{ github.sha }}#egg=SeismicPro
 
     - name: Import SeismicPro
       run: pipenv run python -c 'import seismicpro'
