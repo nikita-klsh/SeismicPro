@@ -62,6 +62,7 @@ def get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times,
 @njit(nogil=True)
 def apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, delay, time, velocity,
                                      interpolate=True, max_stretch_factor=np.inf, fill_value=np.nan, out=None):
+    """Perform gather normal moveout correction with a single velocity and a single time."""
     hodograph_times = np.sqrt(time**2 + (offsets / velocity)**2)
     max_offset = time * velocity * np.sqrt((1 + max_stretch_factor)**2 - 1)
     return get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times, max_offset=max_offset,
@@ -71,6 +72,7 @@ def apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, dela
 @njit(nogil=True)
 def apply_constant_time_velocity_lmo(gather_data, offsets, sample_interval, delay, time, velocity, interpolate=True,
                                      fill_value=np.nan, out=None):
+    """Perform gather linear moveout correction with a single velocity and a single time."""
     hodograph_times = time + (offsets / velocity)
     return get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times, interpolate=interpolate,
                          fill_value=fill_value, out=out)
