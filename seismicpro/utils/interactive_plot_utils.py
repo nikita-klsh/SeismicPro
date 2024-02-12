@@ -920,12 +920,7 @@ class SlidingPlot(InteractivePlot):
         """Reset slider to its initial value."""
         if self.reset_fn is not None:
             return self.reset_fn(event)
-        return self.default_reset_fn()
-
-    def default_reset_fn(self):
-        """Reset slider to `slider_init` and redraw axis."""
-        self.slider.value = self.slider_init
-        self.redraw()
+        return self.set_slider(value=self.slider_init)
 
     def construct_header(self):
         """Append the slider below the plot header."""
