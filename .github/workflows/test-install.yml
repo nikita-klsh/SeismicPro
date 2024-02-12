@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: [3.8, 3.9]
+        python-version: [3.8, 3.9, '3.10', 3.11]
 
     env:
       PYTEST_FLAGS: "not slow ${{ matrix.os != 'ubuntu-latest' && 'and not linux_only' || '' }}"
@@ -75,7 +75,7 @@ jobs:
       run: |
         pip install --user -U pip
         pip install --user -U wheel pytest
-        pip install --user git+https://github.com/${{ github.event.repository.full_name }}.git@${{ github.sha }}#egg=SeismicPro
+        pip install --user git+https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.event.repository.full_name }}.git@${{ github.sha }}#egg=SeismicPro
 
     - name: Import SeismicPro
       run: python -c 'import seismicpro'
@@ -113,7 +113,7 @@ jobs:
         pip install --user -U wheel pipenv
         pipenv --python ${{ matrix.python-version }}
         pipenv install pytest
-        pipenv install git+https://github.com/${{ github.event.repository.full_name }}.git@${{ github.sha }}#egg=SeismicPro
+        pipenv install git+https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.event.repository.full_name }}.git@${{ github.sha }}#egg=SeismicPro
 
     - name: Import SeismicPro
       run: pipenv run python -c 'import seismicpro'
