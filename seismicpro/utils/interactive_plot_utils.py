@@ -97,7 +97,7 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
     current_view : int
         An index of the current plot view.
     """
-    # pylint: disable-next=too-many-statements, too-many-arguments
+    # pylint: disable-next=too-many-arguments, too-many-statements
     def __init__(self, *, plot_fn=None, click_fn=None, slice_fn=None, unclick_fn=None, marker_params=None, title="",
                  preserve_clicks_on_view_change=False, preserve_lims=False, preserve_lims_on_view_change=False,
                  toolbar_position="left", figsize=(4.5, 4.5)):
