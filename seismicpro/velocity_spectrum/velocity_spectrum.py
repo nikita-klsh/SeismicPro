@@ -96,7 +96,7 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
             Calculated velocity spectrum values for a specified `velocity` in time range from `t_min_ix` to `t_max_ix`.
         """
         if correction_type not in {"NMO", "LMO"}:
-            raise ValueError(f'correction_type should be either "NMO" or "LMO, not {correction_type}')
+            raise ValueError(f'correction_type should be either "NMO" or "LMO", not {correction_type}')
         n_times = len(times)
         n_vels = len(velocities)
         numerators = np.zeros((n_times, n_vels), dtype=np.float32)
@@ -110,14 +110,14 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
             if spectrum_mask is not None:
                 # Calculate spectrum only within `spectrum_mask`, considering temporal window
                 ix_from = max(0, time_ix - half_win_size_samples)
-                ix_to = min(len(times), time_ix + half_win_size_samples + 1)
+                ix_to = min(n_times, time_ix + half_win_size_samples + 1)
                 if not np.any(spectrum_mask[ix_from: ix_to, vel_ix]):
                     continue
 
             hodograph = np.empty(len(offsets), dtype=gather_data.dtype)
             if correction_type == "NMO":
                 apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, delay, times[time_ix],
-                                                 velocities[vel_ix], max_stretch_factor, interpolate, out=hodograph)
+                                                 velocities[vel_ix], interpolate, max_stretch_factor, out=hodograph)
             else:
                 apply_constant_time_velocity_lmo(gather_data, offsets, sample_interval, delay, times[time_ix],
                                                  velocities[vel_ix], interpolate, out=hodograph)
@@ -251,7 +251,7 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
 
     @classmethod
     def from_gather(cls, gather, velocities=None, stacking_velocity=None, relative_margin=0.2, velocity_step=50,
-                    window_size=50, mode='semblance', max_stretch_factor=np.inf, interpolate=True):
+                    window_size=50, mode='semblance', interpolate=True, max_stretch_factor=np.inf):
         r"""Calculate Vertical Velocity Spectrum from gather.
         The detailed description of computation algorithm can be found in the class docs.
 
@@ -286,14 +286,14 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
                 `normalized_stacked_amplitude` or `NS`,
                 `crosscorrelation` or `CC`,
                 `energy_normalized_crosscorrelation` or `ENCC`.
+        interpolate: bool, optional, defaults to True
+            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
+            at the nearest time sample is used.
         max_stretch_factor : float, defaults to np.inf
             Maximum allowable factor for the muter that attenuates the effect of waveform stretching after
             NMO correction. This mute is applied after NMO correction for each provided velocity and before coherency
             calculation. The lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
             Reasonably good value is 0.65.
-        interpolate: bool, optional, defaults to True
-            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
-            at the nearest time sample is used.
 
         Returns
         -------
@@ -578,7 +578,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
     @njit(nogil=True, fastmath=True, parallel=True)
     def calculate_residual_spectrum_numba(spectrum_func, coherency_func, correction_type, gather_data, times, offsets,
                                           stacking_velocities, relative_margin, velocity_step, sample_interval, delay,
-                                          half_win_size_samples, max_stretch_factor, interpolate):
+                                          half_win_size_samples, interpolate, max_stretch_factor):
         """Parallelized and njitted method for residual vertical velocity spectrum calculation.
 
         Parameters

@@ -755,8 +755,8 @@ class Gather(TraceContainer, SamplesContainer):
 
     @batch_method(target="threads", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_vertical_velocity_spectrum(self, velocities=None, stacking_velocity=None, relative_margin=0.2,
-                                             velocity_step=50, window_size=50, mode='semblance',
-                                             max_stretch_factor=np.inf, interpolate=True):
+                                             velocity_step=50, window_size=50, mode='semblance', interpolate=True,
+                                             max_stretch_factor=np.inf):
         """Calculate vertical velocity spectrum for the gather.
 
         Notes
@@ -806,14 +806,14 @@ class Gather(TraceContainer, SamplesContainer):
                 `normalized_stacked_amplitude` or `NS`,
                 `crosscorrelation` or `CC`,
                 `energy_normalized_crosscorrelation` or `ENCC`.
+        interpolate: bool, optional, defaults to True
+            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
+            at the nearest time sample is used.
         max_stretch_factor : float, defaults to np.inf
             Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO
             correction. This mute is applied after NMO correction for each provided velocity and before coherency
             calculation. The lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
             Reasonably good value is 0.65.
-        interpolate: bool, optional, defaults to True
-            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
-            at the nearest time sample is used.
 
         Returns
         -------
@@ -821,14 +821,14 @@ class Gather(TraceContainer, SamplesContainer):
             Calculated vertical velocity spectrum.
         """
         kwargs = {'velocities': velocities, 'stacking_velocity': stacking_velocity, 'relative_margin': relative_margin,
-                  'velocity_step': velocity_step, 'window_size': window_size, 'mode': mode,
-                  'max_stretch_factor': max_stretch_factor, 'interpolate': interpolate}
+                  'velocity_step': velocity_step, 'window_size': window_size, 'mode': mode, 'interpolate': interpolate,
+                  'max_stretch_factor': max_stretch_factor}
         return VerticalVelocitySpectrum.from_gather(self, **kwargs)
 
     @batch_method(target="threads", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_residual_velocity_spectrum(self, stacking_velocity, relative_margin=0.2, velocity_step=25,
-                                             window_size=50, mode="semblance", max_stretch_factor=np.inf,
-                                             interpolate=True):
+                                             window_size=50, mode="semblance", interpolate=True,
+                                             max_stretch_factor=np.inf):
         """Calculate residual velocity spectrum for the gather and provided stacking velocity.
 
         Notes
@@ -866,14 +866,14 @@ class Gather(TraceContainer, SamplesContainer):
                 `normalized_stacked_amplitude` or `NS`,
                 `crosscorrelation` or `CC`,
                 `energy_normalized_crosscorrelation` or `ENCC`.
+        interpolate: bool, optional, defaults to True
+            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
+            at the nearest time sample is used.
         max_stretch_factor : float, defaults to np.inf
             Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO
             correction. This mute is applied after NMO correction for each provided velocity and before coherency
             calculation. The lower the value, the stronger the mute. In case np.inf (default) no mute is applied.
             Reasonably good value is 0.65.
-        interpolate: bool, optional, defaults to True
-            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
-            at the nearest time sample is used.
 
         Returns
         -------
@@ -882,7 +882,7 @@ class Gather(TraceContainer, SamplesContainer):
         """
         kwargs = {'stacking_velocity': stacking_velocity, 'relative_margin': relative_margin,
                   'velocity_step': velocity_step, 'window_size': window_size, 'mode': mode,
-                  'max_stretch_factor': max_stretch_factor, 'interpolate': interpolate}
+                   'interpolate': interpolate, 'max_stretch_factor': max_stretch_factor}
         return ResidualVelocitySpectrum.from_gather(self, **kwargs)
 
     @batch_method(target="threads", copy_src=False)
@@ -959,7 +959,7 @@ class Gather(TraceContainer, SamplesContainer):
         return self
 
     @batch_method(target="threads", args_to_unpack="stacking_velocity")
-    def apply_nmo(self, stacking_velocity, max_stretch_factor=np.inf, interpolate=True, fill_value=np.nan):
+    def apply_nmo(self, stacking_velocity, interpolate=True, max_stretch_factor=np.inf, fill_value=np.nan):
         """Perform gather normal moveout correction using the given stacking velocity.
 
         Notes
@@ -973,13 +973,13 @@ class Gather(TraceContainer, SamplesContainer):
             `StackingVelocityField` instance is passed, a `StackingVelocity` corresponding to gather coordinates is
             fetched from it. If `int` or `float` then constant-velocity correction is performed. May be `str` if called
             in a pipeline: in this case it defines a component with stacking velocities to use.
+        interpolate: bool, optional, defaults to True
+            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
+            at the nearest time sample is used.
         max_stretch_factor : float, optional, defaults to np.inf
             Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO
             correction. The lower the value, the stronger the mute. In case np.inf (default) only areas where time
             reversal occurred are muted. Reasonably good value is 0.65.
-        interpolate: bool, optional, defaults to True
-            Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude
-            at the nearest time sample is used.
         fill_value : float, optional, defaults to np.nan
             Fill value to use if hodograph time is outside the gather bounds.
 
@@ -996,8 +996,8 @@ class Gather(TraceContainer, SamplesContainer):
         if isinstance(stacking_velocity, (int, float, np.number)):
             stacking_velocity = np.float32(stacking_velocity / 1000)  # from m/s to m/ms
             self.data = correction.apply_constant_velocity_nmo(self.data, self.offsets, self.sample_interval,
-                                                               self.delay, self.times, stacking_velocity,
-                                                               max_stretch_factor, interpolate, fill_value)
+                                                               self.delay, self.times, stacking_velocity, interpolate,
+                                                               max_stretch_factor, fill_value)
             return self
 
         if isinstance(stacking_velocity, StackingVelocityField):
@@ -1008,7 +1008,7 @@ class Gather(TraceContainer, SamplesContainer):
         velocities = stacking_velocity(self.times) / 1000  # from m/s to m/ms
         velocities_grad = np.gradient(velocities, self.sample_interval)
         self.data = correction.apply_nmo(self.data, self.offsets, self.sample_interval, self.delay, self.times,
-                                         velocities, velocities_grad, max_stretch_factor, interpolate, fill_value)
+                                         velocities, velocities_grad, interpolate, max_stretch_factor, fill_value)
         return self
 
     #------------------------------------------------------------------------#

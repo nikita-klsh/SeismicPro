@@ -61,7 +61,7 @@ def get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times,
 
 @njit(nogil=True)
 def apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, delay, time, velocity,
-                                     max_stretch_factor=np.inf, interpolate=True, fill_value=np.nan, out=None):
+                                     interpolate=True, max_stretch_factor=np.inf, fill_value=np.nan, out=None):
     hodograph_times = np.sqrt(time**2 + (offsets / velocity)**2)
     max_offset = time * velocity * np.sqrt((1 + max_stretch_factor)**2 - 1)
     return get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times, max_offset=max_offset,
@@ -78,7 +78,7 @@ def apply_constant_time_velocity_lmo(gather_data, offsets, sample_interval, dela
 
 @njit(nogil=True, parallel=True)
 def apply_constant_velocity_nmo(gather_data, offsets, sample_interval, delay, times, velocity,
-                                max_stretch_factor=np.inf, interpolate=True, fill_value=np.nan):
+                                interpolate=True, max_stretch_factor=np.inf, fill_value=np.nan):
     """Perform gather normal moveout correction with the same velocity used for all times.
 
     This method is identical to `apply_nmo` when all elements of `velocities` are equal to `velocity` and all elements
@@ -87,14 +87,14 @@ def apply_constant_velocity_nmo(gather_data, offsets, sample_interval, delay, ti
     corrected_gather_data = np.full((len(offsets), len(times)), fill_value=fill_value, dtype=gather_data.dtype)
     for i in prange(len(times)):
         apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, delay, times[i], velocity,
-                                         max_stretch_factor=max_stretch_factor, interpolate=interpolate,
+                                         interpolate=interpolate, max_stretch_factor=max_stretch_factor,
                                          fill_value=fill_value, out=corrected_gather_data[:, i])
     return corrected_gather_data
 
 
 @njit(nogil=True, parallel=True)
 def apply_nmo(gather_data, offsets, sample_interval, delay, times, velocities, velocities_grad,
-              max_stretch_factor=np.inf, interpolate=True, fill_value=np.nan):
+               interpolate=True, max_stretch_factor=np.inf, fill_value=np.nan):
     r"""Perform gather normal moveout correction with given stacking velocities for each timestamp.
 
     The process of NMO correction removes the moveout effect on traveltimes, assuming that reflection traveltimes in a
@@ -131,13 +131,13 @@ def apply_nmo(gather_data, offsets, sample_interval, delay, times, velocities, v
     velocities_grad : 1d np.ndarray
         Gradient of stacking velocities for each zero-offset traveltime. Must match the shape of `times`. Used to
         calculate which gather samples to mute after correction. Measured in meters/milliseconds^2.
+    interpolate: bool, optional, defaults to True
+        Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude at
+        the nearest time sample is used.
     max_stretch_factor : float, optional, defaults to np.inf
         Maximum allowable factor for the muter that attenuates the effect of waveform stretching after NMO correction.
         The lower the value, the stronger the mute. In case np.inf (default) only areas where time reversal occurred
         are muted. Reasonably good value is 0.65.
-    interpolate: bool, optional, defaults to True
-        Whether to perform linear interpolation to retrieve amplitudes along hodographs. If `False`, an amplitude at
-        the nearest time sample is used.
     fill_value : float, optional, defaults to np.nan
         Fill value to use if hodograph time is outside the gather bounds.
 
