@@ -905,11 +905,17 @@ class SlidingPlot(InteractivePlot):
         self.reset_button = widgets.Button(icon="undo", tooltip="Reset to default value",
                                            layout=widgets.Layout(**BUTTON_LAYOUT))
         self.reset_button.on_click(self.on_reset)
-        self.min_widget = widgets.HTML(value=str(slider_min), layout=widgets.Layout(height=WIDGET_HEIGHT))
-        self.max_widget = widgets.HTML(value=str(slider_max), layout=widgets.Layout(height=WIDGET_HEIGHT))
+        self.min_widget = widgets.HTML(value=self._to_string(slider_min), layout=widgets.Layout(height=WIDGET_HEIGHT))
+        self.max_widget = widgets.HTML(value=self._to_string(slider_max), layout=widgets.Layout(height=WIDGET_HEIGHT))
         self.slider_box = widgets.HBox([self.min_widget, self.slider, self.max_widget, self.reset_button],
                                         layout=widgets.Layout(width="90%", margin="auto"))
         super().__init__(**kwargs)
+
+    @staticmethod
+    def _to_string(value):
+        """Convert a value to a string."""
+        # Unify casting rule for any provided numeric data type
+        return f"{value:.8g}"
 
     def on_slider_change(self, event):
         """Handle slider value on its change."""
@@ -937,8 +943,8 @@ class SlidingPlot(InteractivePlot):
 
         self.slider.set_state({"min": min, "max": max, "value": value, "step": step, **kwargs})
         self.slider_init = value
-        self.max_widget.value = str(self.slider.max)
-        self.min_widget.value = str(self.slider.min)
+        self.min_widget.value = self._to_string(self.slider.min)
+        self.max_widget.value = self._to_string(self.slider.max)
 
 
 class PairedPlot:
