@@ -2,44 +2,32 @@
 
 from functools import partial
 
-from ..utils.interactive_plot_utils import WIDGET_HEIGHT, InteractivePlot
-from ..utils import MissingModule, as_dict
-
-# Safe import of modules for interactive plotting
-try:
-    from ipywidgets import widgets
-except ImportError:
-    widgets = MissingModule("ipywidgets")
+from ..utils import as_dict
+from ..utils.interactive_plot_utils import SlidingPlot
 
 
-class SlidingVelocityPlot(InteractivePlot):
+class SlidingVelocityPlot(SlidingPlot):
     """Define an interactive plot with a slider on top of the canvas. The slider becomes invisible on the last view.
 
     Parameters
     ----------
-    slider_min : float
-        Minimum slider value.
-    slider_max : float
-        Maximum slider value.
-    slide_fn : callable
-        A function called on slider move.
+    slider_min : int or float
+        Minimal position of the slider.
+    slider_max : int or float
+        Maximal position of the slider.
+    slider_init : int, float or None, optional
+        Initial position of the slider. If None, the initial position will be set to the minimal position.
+    slider_step : int, float, optional
+        Step of the trackbar.
+    slide_fn : callable, optional
+        Handler is triggered on widgets.FloatSlider move.
+    reset_fn : callable, optional
+        Button handler to reset the widgets.FloatSlider to its initial position.
+    slider_kwargs : dict, optional
+        Additional arguments for the widgets.FloatSlider.
     kwargs : misc, optional
-        Additional keyword arguments to `InteractivePlot.__init__`.
+        Additional keyword arguments to `SlidingPlot.__init__`.
     """
-    def __init__(self, *, slider_min, slider_max, slide_fn=None, **kwargs):
-        min_widget = widgets.HTML(value=str(slider_min), layout=widgets.Layout(height=WIDGET_HEIGHT))
-        max_widget = widgets.HTML(value=str(slider_max), layout=widgets.Layout(height=WIDGET_HEIGHT))
-        self.slider = widgets.FloatSlider(min=slider_min, max=slider_max, step=1, readout=False,
-                                          layout=widgets.Layout(flex="1 1 auto", height=WIDGET_HEIGHT))
-        self.slider.observe(slide_fn, "value")
-        self.slider_box = widgets.HBox([min_widget, self.slider, max_widget],
-                                       layout=widgets.Layout(width="90%", margin="auto"))
-        super().__init__(**kwargs)
-
-    def construct_header(self):
-        """Append the slider below the plot header."""
-        return widgets.VBox([super().construct_header(), self.slider_box], layout=widgets.Layout(overflow="hidden"))
-
     def on_view_toggle(self, event):
         """Hide the slider on the last view."""
         super().on_view_toggle(event)
