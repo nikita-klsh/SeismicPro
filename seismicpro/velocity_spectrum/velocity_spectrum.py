@@ -317,9 +317,9 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
         velocities = np.asarray(velocities, dtype=np.float32)  # m/s
         velocities_ms = velocities / 1000  # from m/s to m/ms
 
-        kwargs = {"coherency_func": coherency_func, "correction_type": cls.correction_type, "gather_data": gather.data,
-                  "times": gather.times, "offsets": gather.offsets, "velocities": velocities_ms,
-                  "sample_interval": gather.sample_interval, "delay": gather.delay,
+        kwargs = {"coherency_func": coherency_func, "correction_type": cls.correction_type,
+                  "gather_data": gather.data.T, "times": gather.times, "offsets": gather.offsets,
+                  "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
                   "half_win_size_samples": half_win_size_samples, "spectrum_mask": None, "interpolate": interpolate,
                   "max_stretch_factor": max_stretch_factor}
         velocity_spectrum = cls.calculate_spectrum_numba(**kwargs)
@@ -558,7 +558,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         stacking_velocities = stacking_velocity(gather.times)
 
         kwargs = {"spectrum_func": cls.calculate_spectrum_numba, "coherency_func": coherency_func,
-                  "correction_type": cls.correction_type, "gather_data": gather.data, "times": gather.times,
+                  "correction_type": cls.correction_type, "gather_data": gather.data.T, "times": gather.times,
                   "offsets": gather.offsets, "stacking_velocities": stacking_velocities,
                   "relative_margin": relative_margin, "velocity_step": velocity_step,
                   "sample_interval": gather.sample_interval, "delay": gather.delay,
@@ -609,7 +609,7 @@ class ResidualVelocitySpectrum(BaseVelocitySpectrum):
         # values for (time, velocity) pairs for which spectrum should be calculated
         left_bound_ix = np.empty(len(left_bound), dtype=np.int32)
         right_bound_ix = np.empty(len(right_bound), dtype=np.int32)
-        spectrum_mask = np.zeros((gather_data.shape[1], len(velocities)), dtype=np.bool_)
+        spectrum_mask = np.zeros((gather_data.shape[0], len(velocities)), dtype=np.bool_)
         for i in prange(len(left_bound_ix)):
             left_bound_ix[i] = np.argmin(np.abs(left_bound[i] - velocities))
             right_bound_ix[i] = np.argmin(np.abs(right_bound[i] - velocities))
@@ -739,7 +739,7 @@ class SlantStack(BaseVelocitySpectrum):
         velocities_ms = velocities / 1000  # from m/s to m/ms
 
         kwargs = {"coherency_func": coherency_funcs.stacked_amplitude_sum, "correction_type": cls.correction_type,
-                  "gather_data": gather.data, "times": gather.times, "offsets": gather.offsets,
+                  "gather_data": gather.data.T, "times": gather.times, "offsets": gather.offsets,
                   "velocities": velocities_ms, "sample_interval": gather.sample_interval, "delay": gather.delay,
                   "half_win_size_samples": 0, "spectrum_mask": None, "interpolate": True, "max_stretch_factor": np.inf}
         velocity_spectrum = cls.calculate_spectrum_numba(**kwargs)

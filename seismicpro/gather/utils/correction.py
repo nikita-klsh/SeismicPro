@@ -47,14 +47,14 @@ def get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times,
     for i in range(n_times):
         amplitude = fill_value
         hodograph_sample = (hodograph_times[i] - delay) / sample_interval
-        if offsets[i] < max_offset and 0 <= hodograph_sample <= gather_data.shape[1] - 1:
+        if offsets[i] < max_offset and 0 <= hodograph_sample <= gather_data.shape[0] - 1:
             if interpolate:
                 time_prev = math.floor(hodograph_sample)
                 time_next = math.ceil(hodograph_sample)
                 weight = time_next - hodograph_sample
-                amplitude = gather_data[i, time_prev] * weight + gather_data[i, time_next] * (1 - weight)
+                amplitude = gather_data[time_prev, i] * weight + gather_data[time_next, i] * (1 - weight)
             else:
-                amplitude = gather_data[i, round(hodograph_sample)]
+                amplitude = gather_data[round(hodograph_sample), i]
         out[i] = amplitude
     return out
 
