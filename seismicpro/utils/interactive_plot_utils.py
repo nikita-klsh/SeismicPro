@@ -5,7 +5,7 @@ from functools import partial
 
 import matplotlib.pyplot as plt
 
-from .general_utils import get_first_defined, align_args, MissingModule
+from .general_utils import to_list, get_first_defined, align_args, MissingModule
 
 # Safe import of modules for interactive plotting
 try:
@@ -160,6 +160,12 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
         self.home_button = widgets.Button(icon="home", tooltip="Reset original view", description=" ",
                                           layout=widgets.Layout(**BUTTON_LAYOUT))
         self.home_button.on_click(self.on_home_toggle)
+        self.back_button = widgets.Button(icon="arrow-left", tooltip="Back to previous view", description=" ",
+                                          layout=widgets.Layout(**BUTTON_LAYOUT))
+        self.back_button.on_click(self.fig.canvas.toolbar.back)
+        self.forward_button = widgets.Button(icon="arrow-right", tooltip="Forward to next view", description=" ",
+                                             layout=widgets.Layout(**BUTTON_LAYOUT))
+        self.forward_button.on_click(self.fig.canvas.toolbar.forward)
         self.pan_button = widgets.ToggleButton(icon="arrows", tooltip="Move the plot",
                                                layout=widgets.Layout(**BUTTON_LAYOUT))
         self.pan_button.observe(self.on_pan_toggle, "value")
@@ -247,19 +253,14 @@ class InteractivePlot:  # pylint: disable=too-many-instance-attributes
     def construct_toolbar(self):
         """Construct a plot toolbar which contains the toolbar of the canvas and constructed buttons."""
         box_type = widgets.HBox if self.toolbar_position in {"top", "bottom"} else widgets.VBox
-        toolbar_buttons = [self.home_button, self.pan_button, self.zoom_button, self.save_button]
+        toolbar_buttons = [self.home_button, self.back_button, self.forward_button, self.pan_button, self.zoom_button,
+                           self.save_button]
         return box_type(self.construct_extra_buttons() + toolbar_buttons)
 
     def construct_box(self):
         """Construct the box of the whole plot which contains figure canvas, header and a toolbar."""
         titled_box = widgets.HBox([widgets.VBox([self.header, self.fig.canvas])])
-        if self.toolbar_position == "top":
-            return widgets.VBox([self.toolbar, titled_box])
-        if self.toolbar_position == "bottom":
-            return widgets.VBox([titled_box, self.toolbar])
-        if self.toolbar_position == "left":
-            return widgets.HBox([self.toolbar, titled_box])
-        return widgets.HBox([titled_box, self.toolbar])
+        return attach_widget(titled_box, self.toolbar, position=self.toolbar_position)
 
     # Event handlers
 
@@ -515,6 +516,11 @@ class DropdownViewPlot(InteractivePlot):
         Plot titles for views defined by `plot_fn`, act as dropdown options.
     preserve_clicks_on_view_change : bool, optional, defaults to False
         Whether to preserve click/slice markers and trigger the corresponding event on view change.
+    preserve_lims : bool, optional, defaults to False
+        Whether to preserve limits changes on each views on its redraw. If `self.plot_fn` is not given, limits won't be
+        preserved.
+    preserve_lims_on_view_change : bool, optional, defaults to False
+        Whether to preserve limits changes on view change.
     toolbar_position : {"top", "bottom", "left", "right"}, optional, defaults to "left"
         Toolbar position relative to the main axes.
     figsize : tuple with 2 elements, optional, defaults to (4.5, 4.5)
@@ -686,6 +692,261 @@ class DropdownOptionPlot(InteractivePlot):
         self.update_state(self.drop.index)
 
 
+class ToggleButtonsPlot(InteractivePlot):
+    """Construct an interactive plot with optional click handling.
+
+    The plot may contain multiple views: one for each of the passed `plot_fn`. A toggle button is created in the
+    toolbar for each view. The plot is interactive: it can handle click and slice events, while each view may define
+    its own processing logic.
+
+    Plotting must be performed in a JupyterLab environment with the `%matplotlib widget` magic executed and `ipympl`
+    and `ipywidgets` libraries installed.
+
+    Parameters
+    ----------
+    plot_fn : callable or list of callable, optional
+        One or more plotters each accepting a single keyword argument `ax`. If not given, an empty plot is created.
+    names : src or list of str or None, optional
+        List of descriptions displayed on the toggle buttons. If None, numbers started from 1 to n_views will be used.
+        If `icons` is not None, this parameter will be omitted.
+    icons : src or list of str or None, optional
+        List of font-awesome icon names for each toggle button.
+    buttons_position : {"top", "bottom", "left", "right"}, optional, defaults to "right"
+        Toggle buttons position relative to the toolbar.
+    click_fn : callable or list of callable, optional
+        Click handlers for views defined by `plot_fn`. Each of them must accept a tuple with 2 elements defining
+        click coordinates. If a single `click_fn` is given, it is used for all views. If not given, click events are
+        not handled.
+    slice_fn : callable or list of callable, optional
+        Slice handlers for views defined by `plot_fn`. Slice is triggered by moving the mouse with the left button
+        held. Each handlers must accept two tuples with 2 elements defining coordinates of slice edges. If a single
+        `slice_fn` is given, it is used for all views. If not given, slice events are not handled.
+    unclick_fn : callable or list of callable, optional
+        Handlers that undo clicks and slices on views defined by `plot_fn`. Each of them is called without arguments.
+        If a single `unclick_fn` is given, it is used for all views. If not given, clicks and slices can not be undone.
+    marker_params : dict or list of dict, optional, defaults to {"marker": "+", "color": "black"}
+        Click marker parameters for views defined by `plot_fn`. Passed directly to `Axes.scatter`. If a single `dict`
+        is given, it is used for all views.
+    title : str or callable or list of str or callable, optional
+        Plot titles for views defined by `plot_fn`. If `callable`, it is called each time the title is being set (e.g.
+        on `redraw`) allowing for dynamic title generation. If not given, an empty title is created.
+    preserve_clicks_on_view_change : bool, optional, defaults to False
+        Whether to preserve click/slice markers and trigger the corresponding event on view change.
+    preserve_lims : bool, optional, defaults to False
+        Whether to preserve limits changes on each views on its redraw. If `self.plot_fn` is not given, limits won't be
+        preserved.
+    preserve_lims_on_view_change : bool, optional, defaults to False
+        Whether to preserve limits changes on view change.
+    toolbar_position : {"top", "bottom", "left", "right"}, optional, defaults to "left"
+        Toolbar position relative to the main axes.
+    figsize : tuple with 2 elements, optional, defaults to (4.5, 4.5)
+        Size of the created figure. Measured in inches.
+
+    Attributes
+    ----------
+    fig : matplotlib.figure.Figure
+        The created figure.
+    ax : matplotlib.axes.Axes
+        Axes of the figure to plot views on.
+    box : ipywidgets.widgets.widget_box.Box
+        Main container that stores figure canvas, plot title, created toggle buttons and a toolbar.
+    n_views : int
+        The number of plot views.
+    current_view : int
+        An index of the current plot view.
+    view_toggle_buttons : list
+        A list with toggle buttons responsible for view change.
+    """
+    def __init__(self, *, plot_fn=None, names=None, icons=None, buttons_position="right", **kwargs):
+        plot_fn_list = to_list(plot_fn)
+        if icons is not None:
+            icons = to_list(names)
+            if len(icons) != len(plot_fn_list):
+                raise ValueError("The length of `icons` must match number of views")
+            buttons_kwargs = [{"icon": icon} for icon in icons]
+        elif names is not None:
+            names = to_list(names)
+            if len(names) != len(plot_fn_list):
+                raise ValueError("The length of `names` must match number of views")
+            buttons_kwargs = [{"description": name} for name in names]
+        else:
+            buttons_kwargs = [{"description": str(i+1)} for i, _ in enumerate(plot_fn_list)]
+
+        # Define widget buttons
+        self.view_toggle_buttons = []
+        for button_kwargs in buttons_kwargs:
+            button = widgets.ToggleButton(layout=widgets.Layout(**{**BUTTON_LAYOUT, "width": "auto"}), **button_kwargs)
+            button.observe(self.on_button_toggle, "value")
+            self.view_toggle_buttons.append(button)
+
+        available_buttons_positions = {"top", "bottom", "left", "right"}
+        if buttons_position not in available_buttons_positions:
+            raise ValueError(f"Unknown buttons position, must be one of {', '.join(available_buttons_positions)}")
+        self.buttons_position = buttons_position
+
+        super().__init__(plot_fn=plot_fn, **kwargs)
+
+    def construct_extra_buttons(self):
+        """Don't use a parent button for view switching."""
+        return []
+
+    def construct_toolbar(self):
+        """Construct a plot toolbar and attach toggle buttons to it."""
+        toolbar = super().construct_toolbar()
+        button_box_type = widgets.HBox if self.toolbar_position in {"top", "bottom"} else widgets.VBox
+        buttons = button_box_type(self.view_toggle_buttons)
+        return attach_widget(toolbar, buttons, position=self.buttons_position)
+
+    def on_button_toggle(self, event):
+        """Switch the plot to the view corresponding to the pressed button."""
+        pressed_button = event["owner"]
+        pressed_button.disabled = True  # Disable pressed button to avoid multiple clicks to the same view
+        for ix, button in enumerate(self.view_toggle_buttons):
+            if button is pressed_button:
+                self.set_view(ix)
+            else:  # Disable if button is not pressed
+                button.unobserve_all()  # Avoid recursion during value setting
+                button.value = False
+                button.disabled = False
+                button.observe(self.on_button_toggle, "value")
+
+
+class SlidingPlot(InteractivePlot):
+    """Construct an interactive plot with FloatSlider and optional click handling.
+
+    A FloatSlider is located between the header and canvas of the plot. The limits of the slider can be changed either
+    with `__init__` or `self.set_slider`.
+
+    The plot may contain multiple views: one for each of the passed `plot_fn`. If more than one view is defined, an
+    extra button is created in the toolbar to iterate over them. The plot is interactive: it can handle click and slice
+    events, while each view may define its own processing logic.
+
+    Plotting must be performed in a JupyterLab environment with the `%matplotlib widget` magic executed and `ipympl`
+    and `ipywidgets` libraries installed.
+
+    Parameters
+    ----------
+    slider_min : int or float
+        Minimal position of the slider.
+    slider_max : int or float
+        Maximal position of the slider.
+    slider_init : int, float or None, optional
+        Initial position of the slider. If None, the initial position will be set to the minimal position.
+    slider_step : int, float, optional
+        Step of the trackbar.
+    slide_fn : callable, optional
+        Handler is triggered on widgets.FloatSlider move.
+    reset_fn : callable, optional
+        Button handler to reset the widgets.FloatSlider to its initial position. If not provided, the slider will be
+        set to `slider_init` position and the axis will be redrawn.
+    slider_kwargs : dict, optional
+        Additional arguments for the widgets.FloatSlider.
+    plot_fn : callable or list of callable, optional
+        One or more plotters each accepting a single keyword argument `ax`. If more than one plotter is given, an extra
+        button for view switching is displayed. If not given, an empty plot is created.
+    click_fn : callable or list of callable, optional
+        Click handlers for views defined by `plot_fn`. Each of them must accept a tuple with 2 elements defining
+        click coordinates. If a single `click_fn` is given, it is used for all views. If not given, click events are
+        not handled.
+    slice_fn : callable or list of callable, optional
+        Slice handlers for views defined by `plot_fn`. Slice is triggered by moving the mouse with the left button
+        held. Each handlers must accept two tuples with 2 elements defining coordinates of slice edges. If a single
+        `slice_fn` is given, it is used for all views. If not given, slice events are not handled.
+    unclick_fn : callable or list of callable, optional
+        Handlers that undo clicks and slices on views defined by `plot_fn`. Each of them is called without arguments.
+        If a single `unclick_fn` is given, it is used for all views. If not given, clicks and slices can not be undone.
+    marker_params : dict or list of dict, optional, defaults to {"marker": "+", "color": "black"}
+        Click marker parameters for views defined by `plot_fn`. Passed directly to `Axes.scatter`. If a single `dict`
+        is given, it is used for all views.
+    title : str or callable or list of str or callable, optional
+        Plot titles for views defined by `plot_fn`. If `callable`, it is called each time the title is being set (e.g.
+        on `redraw`) allowing for dynamic title generation. If not given, an empty title is created.
+    preserve_clicks_on_view_change : bool, optional, defaults to False
+        Whether to preserve click/slice markers and trigger the corresponding event on view change.
+    preserve_lims : bool, optional, defaults to False
+        Whether to preserve limits changes on each views on its redraw. If `self.plot_fn` is not given, limits won't be
+        preserved.
+    preserve_lims_on_view_change : bool, optional, defaults to False
+        Whether to preserve limits changes on view change.
+    toolbar_position : {"top", "bottom", "left", "right"}, optional, defaults to "left"
+        Toolbar position relative to the main axes.
+    figsize : tuple with 2 elements, optional, defaults to (4.5, 4.5)
+        Size of the created figure. Measured in inches.
+
+    Attributes
+    ----------
+    fig : matplotlib.figure.Figure
+        The created figure.
+    ax : matplotlib.axes.Axes
+        Axes of the figure to plot views on.
+    box : ipywidgets.widgets.widget_box.Box
+        Main container that stores figure canvas, plot title, created buttons and, optionally, a toolbar.
+    n_views : int
+        The number of plot views.
+    current_view : int
+        An index of the current plot view.
+    slider_init : int or float
+        Initial position of the slider. One can use it in `self.reset_fn` to reset slider to the initial position.
+    """
+    def __init__(self, *, slider_min, slider_max, slider_init=None, slider_step=None, slide_fn=None, reset_fn=None,
+                 slider_kwargs=None, **kwargs):
+        self.slide_fn = slide_fn
+        self.reset_fn = reset_fn
+        self.slider_init = slider_min if slider_init is None else slider_init
+
+        default_slider_kwargs = {
+            "readout": False,
+            "layout": widgets.Layout(flex="1 1 auto", height=WIDGET_HEIGHT)
+        }
+        slider_params = {"value": slider_init, "min": slider_min, "max": slider_max, "step": slider_step}
+        slider_kwargs = slider_kwargs if slider_kwargs is not None else {}
+        self.slider = widgets.FloatSlider(**{**default_slider_kwargs, **slider_kwargs, **slider_params})
+        self.slider.observe(self.on_slider_change, "value")
+        self.reset_button = widgets.Button(icon="undo", tooltip="Reset to default value",
+                                           layout=widgets.Layout(**BUTTON_LAYOUT))
+        self.reset_button.on_click(self.on_reset)
+        self.min_widget = widgets.HTML(value=self._to_string(slider_min), layout=widgets.Layout(height=WIDGET_HEIGHT))
+        self.max_widget = widgets.HTML(value=self._to_string(slider_max), layout=widgets.Layout(height=WIDGET_HEIGHT))
+        self.slider_box = widgets.HBox([self.min_widget, self.slider, self.max_widget, self.reset_button],
+                                        layout=widgets.Layout(width="90%", margin="auto"))
+        super().__init__(**kwargs)
+
+    @staticmethod
+    def _to_string(value):
+        """Convert a value to a string."""
+        # Unify casting rule for any provided numeric data type
+        return f"{value:.8g}"
+
+    def on_slider_change(self, event):
+        """Handle slider value on its change."""
+        if self.slide_fn is not None:
+            self.slide_fn(event)
+
+    def on_reset(self, event):
+        """Reset slider to its initial value."""
+        if self.reset_fn is not None:
+            return self.reset_fn(event)
+        return self.set_slider(value=self.slider_init)
+
+    def construct_header(self):
+        """Append the slider below the plot header."""
+        return widgets.VBox([super().construct_header(), self.slider_box], layout=widgets.Layout(overflow="hidden"))
+
+    def set_slider(self, value=None, min=None, max=None, step=None, **kwargs):
+        """Change value, limits, step or other slider state."""
+        min = self.slider.min if min is None else min
+        max = self.slider.max if max is None else max
+        step = self.slider.step if step is None else step
+        if value is None:
+            current_value = self.slider.value
+            value = (min + max) / 2 if min > current_value or max < current_value else current_value
+
+        self.slider.set_state({"min": min, "max": max, "value": value, "step": step, **kwargs})
+        self.slider_init = value
+        self.min_widget.value = self._to_string(self.slider.min)
+        self.max_widget.value = self._to_string(self.slider.max)
+
+
 class PairedPlot:
     """Construct a plot that contains two interactive plots stacked together.
 
@@ -733,3 +994,16 @@ class PairedPlot:
         self.main.plot(display_box=False)
         self.aux.plot(display_box=False)
         display(self.box)
+
+
+def attach_widget(widget, widget_to_attach, position, **kwargs):
+    """Construct flexible box from two provided widgets. `position` argument defines widgets relation, thus
+    `position="top"` for example, results in flexible box where `widget_to_attach` will be placed on top of
+    the `widget`."""
+    if position == "top":
+        return widgets.VBox([widget_to_attach, widget], **kwargs)
+    if position == "bottom":
+        return widgets.VBox([widget, widget_to_attach], **kwargs)
+    if position == "left":
+        return widgets.HBox([widget_to_attach, widget], **kwargs)
+    return widgets.HBox([widget, widget_to_attach], **kwargs)
