@@ -1,5 +1,9 @@
 """Core classes and functions of SeismicPro"""
 
+# Enable copy-on-write
+import pandas as pd
+pd.set_option("mode.copy_on_write", True)
+
 from .config import config
 from .dataset import SeismicDataset
 from .index import SeismicIndex
