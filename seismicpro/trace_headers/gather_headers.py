@@ -47,6 +47,8 @@ class GatherTraceHeaders(TraceHeaders):
     def invalidate_coords(self):
         self.__dict__.pop("coords", None)
 
+    # Cache invalidation
+
     def invalidate_cache(self, changed_cols=None):
         if changed_cols is None:
             self.invalidate_index()
@@ -58,18 +60,6 @@ class GatherTraceHeaders(TraceHeaders):
             self.invalidate_index()
         if self.indexed_by is not None and changed_cols_set & set(to_list(self.coords_cols)):
             self.invalidate_coords()
-
-    def clone_cached_properties(self, other):
-        """Clone calculated cached properties to self from other."""
-        if "index" in other.__dict__:
-            self.__dict__["index"] = other.index
-        if "coords" in other.__dict__:
-            self.__dict__["coords"] = other.coords
-
-    def clone(self):
-        cloned = type(self)(pd.DataFrame(self.headers), indexed_by=self.indexed_by, coords_cols=self.coords_cols)
-        cloned.clone_cached_properties(self)
-        return cloned
 
     # Invalidate cache if headers have changed
 
@@ -94,3 +84,17 @@ class GatherTraceHeaders(TraceHeaders):
                             **kwargs)
         self.invalidate_cache(cols if res_cols is None else res_cols)
         return res
+
+    # Clone gather trace headers and its cache
+
+    def clone_cached_properties(self, other):
+        """Clone calculated cached properties to self from other."""
+        if "index" in other.__dict__:
+            self.__dict__["index"] = other.index
+        if "coords" in other.__dict__:
+            self.__dict__["coords"] = other.coords
+
+    def clone(self):
+        cloned = type(self)(pd.DataFrame(self.headers), indexed_by=self.indexed_by, coords_cols=self.coords_cols)
+        cloned.clone_cached_properties(self)
+        return cloned
