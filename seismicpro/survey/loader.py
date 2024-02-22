@@ -2,6 +2,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
+from segfast import MemmapLoader
 
 from ..containers import SamplesContainer
 from ..utils import get_first_defined, ForPoolExecutor
@@ -109,7 +110,7 @@ class DummyLoader(Loader):
 class SEGYLoader(Loader):
     def __init__(self, path, *, sample_interval=None, delay=0, limits=None, endian="big"):
         self.path = path
-        self.loader = Loader(path, engine="memmap", endian=endian, ignore_geometry=True)
+        self.loader = MemmapLoader(path, endian=endian)
         sample_interval = get_first_defined(sample_interval, self.loader.sample_interval / 1000)
         super().__init__(n_samples=self.loader.n_samples, sample_interval=sample_interval, delay=delay, limits=limits)
 

@@ -222,8 +222,9 @@ class SurveyTraceHeaders(TraceHeaders):
     def _calculate_bin_headers(self, validate=True):
         res = calculate_bin_headers(self.headers_polars, validate=validate)
         bin_headers, bin_indexer, cdp_indexer, warn_str = res
+        bin_id_cols = None if bin_indexer is None else bin_indexer.index_cols
         self.__dict__["bin_headers"] = bin_headers
-        self.__dict__["bin_id_cols"] = bin_indexer.index_cols
+        self.__dict__["bin_id_cols"] = bin_id_cols
         self.add_indexer(bin_indexer)
         self.add_indexer(cdp_indexer)
         return warn_str

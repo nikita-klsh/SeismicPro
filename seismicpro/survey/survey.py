@@ -43,7 +43,7 @@ class Survey:
         return Gather(headers=headers, data=data, sample_interval=sample_interval, delay=delay, survey=self)
 
     def get_gather(self, index, limits=None, **loader_kwargs):
-        return self.load_gather(self.headers.get_headers_by_indices((index,)), limits=limits, **loader_kwargs)
+        return self.load_gather(self.headers.get_headers_by_indices([index,]), limits=limits, **loader_kwargs)
 
     def sample_gather(self, limits=None, **loader_kwargs):
         return self.get_gather(index=np.random.choice(self.headers.indices), limits=limits, **loader_kwargs)

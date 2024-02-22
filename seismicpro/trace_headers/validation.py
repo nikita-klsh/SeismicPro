@@ -11,6 +11,9 @@ from ..utils import to_list
 def format_warning(warning, warning_list=None, width=80):
     """Format a list of warnings into a single string."""
     warning_msg = "\n".join(wrap(warning, width=width))
+
+    if warning_list is None:
+        warning_list = []
     n_warnings = len(warning_list)
     if n_warnings > 0:
         ix_len = len(str(n_warnings))
@@ -158,7 +161,10 @@ def validate_trace_headers(headers, offset_atol=10, cdp_atol=10, elevation_atol=
                             f"radius of {elevation_radius} meters for {n_diff} sensor locations "
                             f"({(n_diff / len(elevations)):.2%})")
 
-    return format_warning("The survey has the following inconsistencies in trace headers:", msg_list, width=warn_width)
+    if msg_list:
+        return format_warning("The survey has the following inconsistencies in trace headers:", msg_list,
+                              width=warn_width)
+    return None
 
 
 def calculate_source_headers(headers, source_id_cols=None, validate=True, warn_width=80):
@@ -299,9 +305,6 @@ def calculate_bin_headers(headers, validate=True, warn_width=80):
     elif "CDP" in headers.columns and headers.select((pl.col("CDP") != 0).any()).item():
         bin_id_cols = "CDP"
     else:
-        if validate:
-            warn_str = "Either none of CDP, INLINE_3D or CROSSLINE_3D headers were loaded or they are empty"
-            return None, None, None, format_warning(warn_str, width=warn_width)
         return None, None, None, None
     bin_id_cols_list = to_list(bin_id_cols)
 
