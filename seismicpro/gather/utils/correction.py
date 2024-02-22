@@ -60,7 +60,7 @@ def get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times,
 
 
 @njit(nogil=True)
-def apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, delay, time, velocity,
+def get_hyperbolic_hodograph(gather_data, offsets, sample_interval, delay, time, velocity,
                                      interpolate=True, max_stretch_factor=np.inf, fill_value=np.nan, out=None):
     """Perform gather normal moveout correction with a single velocity and a single time."""
     hodograph_times = np.sqrt(time**2 + (offsets / velocity)**2)
@@ -70,7 +70,7 @@ def apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, dela
 
 
 @njit(nogil=True)
-def apply_constant_time_velocity_lmo(gather_data, offsets, sample_interval, delay, time, velocity, interpolate=True,
+def get_linear_hodograph(gather_data, offsets, sample_interval, delay, time, velocity, interpolate=True,
                                      fill_value=np.nan, out=None):
     """Perform gather linear moveout correction with a single velocity and a single time."""
     hodograph_times = time + (offsets / velocity)
@@ -88,7 +88,7 @@ def apply_constant_velocity_nmo(gather_data, offsets, sample_interval, delay, ti
     """
     corrected_gather_data = np.full((len(offsets), len(times)), fill_value=fill_value, dtype=gather_data.dtype)
     for i in prange(len(times)):
-        apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, delay, times[i], velocity,
+        get_hyperbolic_hodograph(gather_data, offsets, sample_interval, delay, times[i], velocity,
                                          interpolate=interpolate, max_stretch_factor=max_stretch_factor,
                                          fill_value=fill_value, out=corrected_gather_data[:, i])
     return corrected_gather_data

@@ -13,7 +13,7 @@ from ..containers import SamplesContainer
 from ..decorators import batch_method, plotter
 from ..stacking_velocity import StackingVelocity, StackingVelocityField
 from ..utils import get_first_defined, VFUNC
-from ..gather.utils.correction import apply_constant_time_velocity_nmo, apply_constant_time_velocity_lmo
+from ..gather.utils.correction import get_hyperbolic_hodograph, get_linear_hodograph
 from ..const import DEFAULT_STACKING_VELOCITY
 
 
@@ -116,11 +116,11 @@ class BaseVelocitySpectrum(Spectrum, SamplesContainer):
 
             hodograph = np.empty(len(offsets), dtype=gather_data.dtype)
             if correction_type == "NMO":
-                apply_constant_time_velocity_nmo(gather_data, offsets, sample_interval, delay, times[time_ix],
-                                                 velocities[vel_ix], interpolate, max_stretch_factor, out=hodograph)
+                get_hyperbolic_hodograph(gather_data, offsets, sample_interval, delay, times[time_ix],
+                                         velocities[vel_ix], interpolate, max_stretch_factor, out=hodograph)
             else:
-                apply_constant_time_velocity_lmo(gather_data, offsets, sample_interval, delay, times[time_ix],
-                                                 velocities[vel_ix], interpolate, out=hodograph)
+                get_linear_hodograph(gather_data, offsets, sample_interval, delay, times[time_ix], velocities[vel_ix],
+                                     interpolate, out=hodograph)
 
             numerator, denominator = coherency_func(hodograph)
             numerators[time_ix, vel_ix] = numerator
