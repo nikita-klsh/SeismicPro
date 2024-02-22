@@ -401,6 +401,10 @@ class SurveyTraceHeaders(TraceHeaders):
     def get_traces_locs(self, indices, return_n_traces=False):
         return self.indexer.get_locs(indices, return_n_rows=return_n_traces)
 
+    def get_headers_by_indices(self, indices, return_n_traces=False):
+        locs = self.get_traces_locs(indices, return_n_traces=return_n_traces)
+        return self.headers.iloc[locs]
+
     def reindex(self, index=None, inplace=False):
         if not inplace:
             self = self.clone()  # pylint: disable=self-cls-assignment
