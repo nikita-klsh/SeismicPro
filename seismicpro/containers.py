@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
-from .decorators import batch_method
+# from .decorators import batch_method
 from .utils import to_list, get_cols, create_indexer, maybe_copy, load_dataframe, dump_dataframe
 from .const import HDR_FIRST_BREAK
 
@@ -204,7 +204,7 @@ class TraceContainer:
         _ = key
         return
 
-    @batch_method(target="for")
+    # @batch_method(target="for")
     def filter(self, cond, cols, axis=None, unpack_args=False, inplace=False, **kwargs):
         """Keep only those rows of `headers` where `cond` is `True`.
 
@@ -261,7 +261,7 @@ class TraceContainer:
         self._post_index(mask)
         return self
 
-    @batch_method(target="for")
+    # @batch_method(target="for")
     def apply(self, func, cols, res_cols=None, axis=None, unpack_args=False, inplace=False, **kwargs):
         """Apply a function to `self.headers` along the specified axis.
 
@@ -307,7 +307,7 @@ class TraceContainer:
         self.headers[res_cols] = res
         return self
 
-    @batch_method(target="for")
+    # @batch_method(target="for")
     # pylint: disable-next=too-many-arguments
     def load_headers(self, path, has_header=False, headers_names=None, usecols=None, join_on=None, how="inner",
                      skiprows=0, format="fwf", sep=',', decimal=None, encoding="UTF-8", inplace=False, **kwargs):
@@ -390,7 +390,7 @@ class TraceContainer:
         self._post_index(joined_headers["row_index"].to_numpy())
         return self
 
-    @batch_method(target="for", use_lock=True)
+    # @batch_method(target="for", use_lock=True)
     def dump_headers(self, path, headers_names, dump_headers_names=False, format="fwf", append=False, sep=",",
                      decimal='.', float_precision=2, min_width=None, **kwargs):
         """Save the selected headers to a file.
@@ -439,7 +439,7 @@ class TraceContainer:
     #                         Task specific methods                          #
     #------------------------------------------------------------------------#
 
-    @batch_method(target="for")
+    # @batch_method(target="for")
     def load_first_breaks(self, path, trace_id_headers=('FieldRecord', 'TraceNumber'),
                           first_breaks_header=HDR_FIRST_BREAK, inplace=False, **kwargs):
         """Load times of first breaks from a file and save them to a new column in headers.
@@ -471,7 +471,7 @@ class TraceContainer:
         return self.load_headers(path=path, headers_names=headers_names, join_on=trace_id_headers, inplace=inplace,
                                  **kwargs)
 
-    @batch_method(target="for", use_lock=True)
+    # @batch_method(target="for", use_lock=True)
     def dump_first_breaks(self, path, trace_id_headers=('FieldRecord', 'TraceNumber'),
                           first_breaks_header=HDR_FIRST_BREAK, **kwargs):
         """Save first break picking times to a file.
