@@ -1079,7 +1079,7 @@ class Gather(TraceContainer, SamplesContainer):
         """
         amplify_factor = np.clip(amplify_factor, 0, 1)
         self.headers = self.headers.iloc[[0]]  # Preserve headers of the first trace of the gather being stacked
-        self.data = stack(self.data, amplify_factor).reshape(1, -1)
+        self.data = stack(self.data, amplify_factor)
         return self
 
     def crop(self, origins, crop_shape, n_crops=1, stride=None, pad_mode='constant', **kwargs):

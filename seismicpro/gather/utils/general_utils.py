@@ -134,7 +134,7 @@ def mute_gather(gather_data, muting_times, sample_interval, delay, fill_value):
 @njit(nogil=True, parallel=True)
 def stack(corrected_gather, amplify_factor=0):
     """Stack gather data using stacked amplitude coherency."""
-    stacked_trace = np.empty_like(corrected_gather[0])
+    stacked_trace = np.empty((1, corrected_gather.shape[1]), dtype=corrected_gather.dtype)
     for i in prange(corrected_gather.shape[1]):  # pylint: disable=not-an-iterable
-        stacked_trace[i] = stacked_amplitude(corrected_gather[:, i], amplify_factor=amplify_factor, abs=False)[0]
+        stacked_trace[:, i] = stacked_amplitude(corrected_gather[:, i], amplify_factor=amplify_factor, abs=False)[0]
     return stacked_trace
