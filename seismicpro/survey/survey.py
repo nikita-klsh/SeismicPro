@@ -10,6 +10,7 @@ from ..decorators import delegate_calls
 
 
 @delegate_calls(Loader, "loader")
+@delegate_calls(SurveyTraceHeaders, "headers")
 class Survey(SamplesContainer):
     def __init__(self, headers, loader=None):
         if isinstance(headers, (pd.DataFrame, pl.DataFrame)):

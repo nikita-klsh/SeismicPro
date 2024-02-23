@@ -38,15 +38,17 @@ def delegate_calls(delegate_cls, delegate_attr):
             def cls_prop(self, _prop=prop):
                 return getattr(getattr(self, delegate_attr), _prop)
 
-            if delegate_cls_prop.fset is not None:
+            setter = getattr(delegate_cls_prop, "fset", None)
+            if setter is not None:
                 @cls_prop.setter
-                @wraps(delegate_cls_prop.fset)
+                @wraps(setter)
                 def cls_prop(self, value, _prop=prop):
                     return setattr(getattr(self, delegate_attr), _prop, value)
 
-            if delegate_cls_prop.fdel is not None:
+            deleter = getattr(delegate_cls_prop, "fdel", None)
+            if deleter is not None:
                 @cls_prop.deleter
-                @wraps(delegate_cls_prop.fdel)
+                @wraps(deleter)
                 def cls_prop(self, _prop=prop):
                     return delattr(getattr(self, delegate_attr), _prop)
 

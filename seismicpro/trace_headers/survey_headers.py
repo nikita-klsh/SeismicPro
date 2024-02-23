@@ -12,6 +12,18 @@ from ..utils.interpolation import IDWInterpolator, DelaunayInterpolator, CloughT
 
 
 class SurveyTraceHeaders(TraceHeaders):
+    # TODO: add cache invalidation here?
+    PUBLIC_ATTRIBUTES = ["indexers", "indexed_by"]
+    PUBLIC_PROPERTIES = ["n_traces", "is_empty", "indexer", "indices", "n_gathers", "source_id_cols", "source_headers",
+                         "is_uphole", "n_sources", "receiver_id_cols", "receiver_headers", "n_receivers",
+                         "bin_headers", "bin_id_cols", "n_bins", "is_stacked", "is_2d", "is_3d",
+                         "elevation_interpolator", "geometry"]
+    PUBLIC_METHODS = ["__getitem__", "__setitem__", "get_headers", "add_indexer", "set_source_id_cols",
+                      "calculate_source_headers", "set_receiver_id_cols", "calculate_receiver_headers",
+                      "calculate_bin_headers", "validate_headers", "get_elevation_interpolator",
+                      "create_elevation_interpolator", "create_default_elevation_interpolator", "infer_geometry",
+                      "get_traces_locs", "get_headers_by_indices"]
+
     def __init__(self, headers, indexed_by=None, source_id_cols=None, receiver_id_cols=None, indexers=None,
                  validate=True, infer_geometry=True):
         super().__init__(headers, indexed_by=indexed_by)
@@ -34,7 +46,7 @@ class SurveyTraceHeaders(TraceHeaders):
         self._receiver_id_cols = self._validate_columns(receiver_id_cols)
 
         if validate:
-            self.validate()
+            self.validate_headers()
         if infer_geometry:
             self.create_default_elevation_interpolator()
             self.infer_geometry()
@@ -236,7 +248,7 @@ class SurveyTraceHeaders(TraceHeaders):
 
     # Headers validation
 
-    def validate(self, offset_atol=10, cdp_atol=10, elevation_atol=5, elevation_radius=50):
+    def validate_headers(self, offset_atol=10, cdp_atol=10, elevation_atol=5, elevation_radius=50):
         warn_list = [
             validate_trace_headers(self.headers_polars, offset_atol=offset_atol, cdp_atol=cdp_atol,
                                    elevation_atol=elevation_atol, elevation_radius=elevation_radius),
