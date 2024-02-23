@@ -191,7 +191,7 @@ def calculate_source_headers(headers, source_id_cols=None, validate=True, warn_w
     if validate:
         expr_list.append(pl.n_unique(source_non_id_cols).name.prefix("n_"))
     grouped = headers.with_row_index("locs").group_by(source_id_cols).agg(expr_list).sort(source_id_cols)
-    source_headers = grouped.select(source_id_cols + source_non_id_cols)
+    source_headers = grouped.select(source_id_cols + source_non_id_cols).to_pandas(use_pyarrow_extension_array=True)
     indexer = grouped.select(source_id_cols + ["locs", "n_rows"]).to_pandas(use_pyarrow_extension_array=True)
     indexer.set_index(source_id_cols, inplace=True)
     indexer = Indexer(indexer)
@@ -253,7 +253,7 @@ def calculate_receiver_headers(headers, receiver_id_cols=None, validate=True, wa
             return None, None, format_warning(warn_str, width=warn_width)
         return None, None, None
 
-    # Manually iterate over RECEIVER_HEADERS to preserve order
+    # Manually iterate over receiver_cols to preserve order
     receiver_cols = ("GroupX", "GroupY", "ReceiverGroupElevation")
     receiver_non_id_cols = [col for col in receiver_cols if col in headers.columns and col not in receiver_id_cols]
     expr_list = [pl.col("locs"), pl.count("locs").alias("n_rows"), pl.mean(receiver_non_id_cols)]
@@ -261,6 +261,7 @@ def calculate_receiver_headers(headers, receiver_id_cols=None, validate=True, wa
         expr_list.append(pl.n_unique(receiver_non_id_cols).name.prefix("n_"))
     grouped = headers.with_row_index("locs").group_by(receiver_id_cols).agg(expr_list).sort(receiver_id_cols)
     receiver_headers = grouped.select(receiver_id_cols + receiver_non_id_cols)
+    receiver_headers = receiver_headers.to_pandas(use_pyarrow_extension_array=True)
     indexer = grouped.select(receiver_id_cols + ["locs", "n_rows"]).to_pandas(use_pyarrow_extension_array=True)
     indexer.set_index(receiver_id_cols, inplace=True)
     indexer = Indexer(indexer)
@@ -325,7 +326,7 @@ def calculate_bin_headers(headers, validate=True, warn_width=80):
     grouped_cdp = headers.group_by("CDP_X", "CDP_Y").agg(common_expr_list + cdp_expr_list).sort("CDP_X", "CDP_Y")
     grouped_bin, grouped_cdp = pl.collect_all([grouped_bin, grouped_cdp])
 
-    bin_headers = grouped_bin.select(bin_id_cols_list + ["CDP_X", "CDP_Y"])
+    bin_headers = grouped_bin.select(bin_id_cols_list + ["CDP_X", "CDP_Y"]).to_pandas(use_pyarrow_extension_array=True)
     bin_indexer = grouped_bin.select(bin_id_cols_list + ["locs", "n_rows"]).to_pandas(use_pyarrow_extension_array=True)
     bin_indexer.set_index(bin_id_cols_list, inplace=True)
     bin_indexer = Indexer(bin_indexer)

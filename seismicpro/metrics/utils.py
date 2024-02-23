@@ -49,6 +49,9 @@ def parse_index(index, index_cols=None):
     if isinstance(index, pd.DataFrame):
         data_index_cols = index.columns.tolist()
         index = index.to_numpy()
+    elif isinstance(index, pd.Series):
+        data_index_cols = [index.name]
+        index = index.to_numpy().reshape(-1, 1)
     elif isinstance(index, pd.Index):
         data_index_cols = index.names
         if None in data_index_cols:  # Undefined index names, fallback to defaults

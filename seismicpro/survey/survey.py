@@ -3,6 +3,7 @@ import pandas as pd
 import polars as pl
 
 from .loader import Loader, DummyLoader, SEGYLoader
+from .plot_geometry import SurveyGeometryPlot
 from ..gather import Gather
 from ..trace_headers import SurveyTraceHeaders
 from ..containers import SamplesContainer
@@ -77,3 +78,6 @@ class Survey(SamplesContainer):
 
     def sample_gather(self, limits=None, **loader_kwargs):
         return self.get_gather(index=np.random.choice(self.indices), limits=limits, **loader_kwargs)
+
+    def plot_geometry(self, **kwargs):
+        SurveyGeometryPlot(self, **kwargs).plot()
