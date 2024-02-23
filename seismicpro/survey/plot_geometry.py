@@ -22,7 +22,7 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
     """
 
     #pylint: disable-next=too-many-arguments
-    def __init__(self, survey, show_contour=True, keep_aspect=False, source_id_cols=None, source_sort_by=None,
+    def __init__(self, survey, show_contour=True, keep_aspect=True, source_id_cols=None, source_sort_by=None,
                  receiver_id_cols=None, receiver_sort_by=None, sort_by=None, gather_plot_kwargs=None, x_ticker=None,
                  y_ticker=None, figsize=(4.5, 4.5), fontsize=8, orientation="horizontal", **kwargs):
         if not {"SourceX", "SourceY", "GroupX", "GroupY"} <= set(survey.headers.headers.columns):
@@ -70,10 +70,18 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
                                        self.receiver_coords[:, 0].min(), self.receiver_coords[:, 0].max()])
         y_lim = calculate_axis_limits([self.source_coords[:, 1].min(), self.source_coords[:, 1].max(),
                                        self.receiver_coords[:, 1].min(), self.receiver_coords[:, 1].max()])
-        
+        if keep_aspect:
+            x_mean = (x_lim[1] + x_lim[0]) / 2
+            x_len = x_lim[1] - x_lim[0]
+            y_mean = (y_lim[1] + y_lim[0]) / 2
+            y_len = y_lim[1] - y_lim[0]
+            max_len = max(x_len, y_len)
+            x_lim = (x_mean - max_len / 2, x_mean + max_len / 2)
+            y_lim = (y_mean - max_len / 2, y_mean + max_len / 2)
+
         # TODO: plot geometry
-        self.plot_map = partial(self._plot_map, contours=None, keep_aspect=keep_aspect, x_lim=x_lim, y_lim=y_lim,
-                                x_ticker=x_ticker, y_ticker=y_ticker, **self.scatter_kwargs)
+        self.plot_map = partial(self._plot_map, contours=None, x_lim=x_lim, y_lim=y_lim, x_ticker=x_ticker,
+                                y_ticker=y_ticker, **self.scatter_kwargs)
         self.plot_gather = partial(self._plot_gather, **gather_plot_kwargs)
         self.activated_scatter = None
 
@@ -160,7 +168,7 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
         """str: Label of the Y map axis depending on the current view."""
         return "SourceY" if self.is_shot_view else "GroupY"
 
-    def _plot_map(self, ax, contours, keep_aspect, x_lim, y_lim, x_ticker, y_ticker, **kwargs):
+    def _plot_map(self, ax, contours, x_lim, y_lim, x_ticker, y_ticker, **kwargs):
         """Plot locations of sources or receivers depending on the current view."""
         self.aux.clear()
         self.aux.box.layout.visibility = "hidden"
@@ -172,8 +180,6 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
         ax.set_xlim(*x_lim)
         ax.set_ylim(*y_lim)
         ax.ticklabel_format(style="plain", useOffset=False)
-        if keep_aspect:
-            ax.set_aspect("equal", adjustable="box")
         set_ticks(ax, "x", self.map_x_label, **x_ticker)
         set_ticks(ax, "y", self.map_y_label, **y_ticker)
 
