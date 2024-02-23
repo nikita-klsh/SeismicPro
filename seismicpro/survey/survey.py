@@ -41,13 +41,39 @@ class Survey(SamplesContainer):
     def clone(self):
         return type(self)(self.headers.clone(), self.loader.clone())
 
+    # Implement methods for trace headers processing
+
+    def filter(self, cond, cols=None, axis=None, unpack_args=False, inplace=False, return_mask=False,
+               preserve_geometry=True, **kwargs):
+        if not inplace:
+            self = self.clone()  # pylint: disable=self-cls-assignment
+        _, mask = self.headers.filter(cond, cols, axis=axis, unpack_args=unpack_args, inplace=True, return_mask=True,
+                                      preserve_geometry=preserve_geometry, **kwargs)
+        if return_mask:
+            return self, mask
+        return self
+
+    def apply(self, func, cols, res_cols=None, axis=None, unpack_args=False, inplace=False, **kwargs):
+        if not inplace:
+            self = self.clone()  # pylint: disable=self-cls-assignment
+        self.headers.apply(func, cols, res_cols=res_cols, axis=axis, unpack_args=unpack_args, inplace=True, **kwargs)
+        return self
+
+    def reindex(self, index=None, inplace=False):
+        if not inplace:
+            self = self.clone()  # pylint: disable=self-cls-assignment
+        self.headers.reindex(index, inplace=True)
+        return self
+
+    # Gather loading methods
+
     def load_gather(self, headers, limits=None, **loader_kwargs):
-        data, sample_interval, delay = self.loader.load_traces(headers, limits=limits, return_samples_info=True,
-                                                               **loader_kwargs)
+        data, sample_interval, delay = self.load_traces(headers, limits=limits, return_samples_info=True,
+                                                        **loader_kwargs)
         return Gather(headers=headers, data=data, sample_interval=sample_interval, delay=delay, survey=self)
 
     def get_gather(self, index, limits=None, **loader_kwargs):
-        return self.load_gather(self.headers.get_headers_by_indices([index,]), limits=limits, **loader_kwargs)
+        return self.load_gather(self.get_headers_by_indices([index,]), limits=limits, **loader_kwargs)
 
     def sample_gather(self, limits=None, **loader_kwargs):
-        return self.get_gather(index=np.random.choice(self.headers.indices), limits=limits, **loader_kwargs)
+        return self.get_gather(index=np.random.choice(self.indices), limits=limits, **loader_kwargs)
