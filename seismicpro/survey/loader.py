@@ -9,6 +9,12 @@ from ..utils import get_first_defined, ForPoolExecutor
 
 
 class Loader(SamplesContainer):
+    # Public properties and methods are defined assuming that the container class will be inherited from
+    # SamplesContainer
+    PUBLIC_ATTRIBUTES = ["file_samples", "file_sample_interval", "file_delay", "samples", "sample_interval", "delay"]
+    PUBLIC_PROPERTIES = ["file_sample_rate", "file_n_samples", "limits"]
+    PUBLIC_METHODS = ["set_limits", "load_traces"]
+
     def __init__(self, *args, n_samples, sample_interval, delay=0, limits=None, **kwargs):
         _ = args, kwargs
 
@@ -21,7 +27,7 @@ class Loader(SamplesContainer):
         self.file_delay = delay
 
         # Set samples and sample_rate according to passed `limits`
-        self.limits = None
+        self._limits = None
         self.samples = None
         self.sample_interval = None
         self.delay = None
@@ -36,7 +42,15 @@ class Loader(SamplesContainer):
     def file_n_samples(self):
         """int: Trace length in samples in the source SEG-Y file."""
         return len(self.file_samples)
-    
+
+    @property
+    def limits(self):
+        return self._limits
+
+    @limits.setter
+    def limits(self, limits):
+        self.set_limits(limits)
+
     def _process_limits(self, limits=None):
         """Convert given `limits` to a `slice`."""
         if limits is None:
@@ -77,8 +91,8 @@ class Loader(SamplesContainer):
             If negative step of limits was passed.
             If the resulting samples length is zero.
         """
-        self.limits, _, self.sample_interval, self.delay = self._get_limits_info(limits)
-        self.samples = self.file_samples[self.limits]
+        self._limits, _, self.sample_interval, self.delay = self._get_limits_info(limits)
+        self.samples = self.file_samples[self._limits]
 
     def clone(self):
         raise NotImplementedError
@@ -86,7 +100,7 @@ class Loader(SamplesContainer):
     def load_traces(self, headers, limits=None, buffer=None, return_samples_info=False):
         _ = headers, limits, buffer, return_samples_info
         raise NotImplementedError
-    
+
 
 class DummyLoader(Loader):
     def __init__(self, *, n_samples=500, sample_interval=2, delay=0, limits=None):

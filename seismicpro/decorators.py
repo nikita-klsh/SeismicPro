@@ -10,6 +10,58 @@ from batchflow.decorators import action, inbatch_parallel
 from .utils import to_list, align_src_dst, save_figure, as_dict
 
 
+def copy_signature(method):
+    def decorator(func):
+        @wraps(method)
+        def decorated(*args, **kwargs):
+            inspect.signature(method).bind(*args, **kwargs)
+            return func(*args, **kwargs)
+        decorated.__signature__ = inspect.signature(method)
+        return decorated
+    return decorator
+
+
+def delegate_calls(delegate_cls, delegate_attr):
+    def decorator(cls):
+        for attr in getattr(delegate_cls, "PUBLIC_ATTRIBUTES", []):
+            # TODO: add docstring
+            @property
+            def cls_prop(self, _attr=attr):
+                return getattr(getattr(self, delegate_attr), _attr)
+            setattr(cls, attr, cls_prop)
+
+        for prop in getattr(delegate_cls, "PUBLIC_PROPERTIES", []):
+            delegate_cls_prop = getattr(delegate_cls, prop)
+
+            @property
+            @wraps(delegate_cls_prop)
+            def cls_prop(self, _prop=prop):
+                return getattr(getattr(self, delegate_attr), _prop)
+
+            if delegate_cls_prop.fset is not None:
+                @cls_prop.setter
+                @wraps(delegate_cls_prop.fset)
+                def cls_prop(self, value, _prop=prop):
+                    return setattr(getattr(self, delegate_attr), _prop, value)
+
+            if delegate_cls_prop.fdel is not None:
+                @cls_prop.deleter
+                @wraps(delegate_cls_prop.fdel)
+                def cls_prop(self, _prop=prop):
+                    return delattr(getattr(self, delegate_attr), _prop)
+
+            setattr(cls, prop, cls_prop)
+
+        for method in getattr(delegate_cls, "PUBLIC_METHODS", []):
+            @copy_signature(getattr(delegate_cls, method))
+            def cls_method(self, *args, _method=method, **kwargs):
+                return getattr(getattr(self, delegate_attr), _method)(*args, **kwargs)
+            setattr(cls, method, cls_method)
+
+        return cls
+    return decorator
+
+
 def _update_method_params(method, decorator_name, **decorator_params):
     """Update a `method_params` dict of the `method` with passed `decorator_params` by storing them under
     `decorator_name` key. If such a key already exists, its value will be updated."""

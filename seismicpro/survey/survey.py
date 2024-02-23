@@ -2,12 +2,15 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
-from .loader import DummyLoader, SEGYLoader
+from .loader import Loader, DummyLoader, SEGYLoader
 from ..gather import Gather
 from ..trace_headers import SurveyTraceHeaders
+from ..containers import SamplesContainer
+from ..decorators import delegate_calls
 
 
-class Survey:
+@delegate_calls(Loader, "loader")
+class Survey(SamplesContainer):
     def __init__(self, headers, loader=None):
         if isinstance(headers, (pd.DataFrame, pl.DataFrame)):
             headers = SurveyTraceHeaders(headers)
