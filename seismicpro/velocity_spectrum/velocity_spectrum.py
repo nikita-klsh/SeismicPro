@@ -199,11 +199,10 @@ class VerticalVelocitySpectrum(BaseVelocitySpectrum):
     values based on hyperbolas with each combination of the starting point :math:`k` and velocity :math:`v`.
 
     The algorithm for velocity spectrum calculation looks as follows:
-    For each velocity from the given velocity range:
+    For each gather's timestamp within a temporal window while iterating over a given velocity range:
         1. Calculate NMO-corrected gather.
-        2. Estimate numerator and denominator for given coherency measure for each timestamp.
-        3. Get the values of velocity spectrum as a ratio of rolling sums of numerator and denominator in temporal
-        windows of a given size.
+        2. Estimate numerator and denominator for given coherency measure.
+        3. Get the values of velocity spectrum as a ratio of rolling sums of numerator and denominator.
 
     Examples
     --------
@@ -685,6 +684,14 @@ class SlantStack(BaseVelocitySpectrum):
     1. By passing the gather to `from_gather` constructor.
     2. By calling :func:`~Gather.calculate_slant_stack` method (recommended way).
 
+    The method for slant stack computation for a given time and velocity mainly coincides with the calculation
+    of :func:`~VerticalVelocitySpectrum.from_gather` and looks as follows:
+
+    For each gather's timestamp within a temporal window while iterating over a given velocity range:
+        1. Calculate LMO-corrected gather.
+        2. Estimate numerator and denominator for `stacked_amplitude_sum` coherency measure.
+        3. Get the slant stack value as a ratio of numerator and denominator.
+
     Attributes
     ----------
     spectrum : 2d np.ndarray
@@ -710,14 +717,7 @@ class SlantStack(BaseVelocitySpectrum):
     @classmethod
     def from_gather(cls, gather, velocities=None):
         """Calculate Slant Stack transform from gather.
-
-        The method for slant stack computation for a given time and velocity coincides with
-        the calculation of :func:`~VerticalVelocitySpectrum.from_gather` and looks as follows:
-
-        For each velocity from the given velocity range:
-            1. Calculate LMO-corrected gather.
-            2. Estimate numerator and denominator for `stacked_amplitude_sum` coherency measure for each timestamp.
-            3. Get the slant stack value as a ratio of numerator and denominator.
+        The description of computation algorithm can be found in the class docs.
 
         Parameters
         ----------
