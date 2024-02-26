@@ -1,4 +1,5 @@
 import warnings
+from inspect import getmembers
 from functools import cached_property
 
 import numpy as np
@@ -8,21 +9,22 @@ from .trace_headers import TraceHeaders
 from .indexer import Indexer
 from .validation import (validate_trace_headers, calculate_source_headers, calculate_receiver_headers,
                          calculate_bin_headers)
+from ..utils import to_list
 from ..utils.interpolation import IDWInterpolator, DelaunayInterpolator, CloughTocherInterpolator, RBFInterpolator
 
 
 class SurveyTraceHeaders(TraceHeaders):
-    # TODO: add cache invalidation here?
     PUBLIC_ATTRIBUTES = ["indexers", "indexed_by"]
     PUBLIC_PROPERTIES = ["n_traces", "is_empty", "indexer", "indices", "n_gathers", "source_id_cols", "source_headers",
                          "is_uphole", "n_sources", "receiver_id_cols", "receiver_headers", "n_receivers",
                          "bin_headers", "bin_id_cols", "n_bins", "is_stacked", "is_2d", "is_3d",
-                         "elevation_interpolator", "geometry"]
+                         "elevation_interpolator", "geometry", "cached_properties", "calculated_cached_properties",
+                         "cached_properties_cols"]
     PUBLIC_METHODS = ["__getitem__", "__setitem__", "get_headers", "add_indexer", "set_source_id_cols",
                       "calculate_source_headers", "set_receiver_id_cols", "calculate_receiver_headers",
                       "calculate_bin_headers", "validate_headers", "get_elevation_interpolator",
                       "create_elevation_interpolator", "create_default_elevation_interpolator", "infer_geometry",
-                      "get_traces_locs", "get_headers_by_indices"]
+                      "invalidate_indexers", "invalidate_cache", "get_traces_locs", "get_headers_by_indices"]
 
     def __init__(self, headers, indexed_by=None, source_id_cols=None, receiver_id_cols=None, indexers=None,
                  validate=True, infer_geometry=True):
@@ -81,6 +83,12 @@ class SurveyTraceHeaders(TraceHeaders):
             raise TypeError
         self.indexers[indexer.index_cols] = indexer
 
+    def create_indexer(self, indexed_by):
+        indexed_by = self._validate_columns(indexed_by)
+        if indexed_by not in self.indexers:
+            indexer = Indexer.from_dataframe(self.headers_polars, indexed_by)
+            self.add_indexer(indexer)
+
     # Source headers properties and processing methods
 
     @property
@@ -96,10 +104,6 @@ class SurveyTraceHeaders(TraceHeaders):
         self.calculate_source_headers(validate=True)
         return self.source_headers
 
-    def invalidate_source_headers(self):
-        self.__dict__.pop("source_headers", None)
-        self.__dict__.pop("is_uphole", None)  # Depends on source_headers
-
     @cached_property
     def is_uphole(self):
         """bool or None: Whether the survey is uphole. `None` if uphole-related headers are not loaded."""
@@ -110,9 +114,6 @@ class SurveyTraceHeaders(TraceHeaders):
         if not has_uphole_times and not has_uphole_depths:
             return None
         return has_positive_uphole_times or has_positive_uphole_depths
-
-    def invalidate_is_uphole(self):
-        self.__dict__.pop("is_uphole", None)
 
     @property
     def n_sources(self):
@@ -126,7 +127,8 @@ class SurveyTraceHeaders(TraceHeaders):
         time and depth."""
         cols = self._validate_columns(cols)
         if self.source_id_cols != cols:
-            self.invalidate_source_headers()
+            self.__dict__.pop("source_headers", None)
+            self.__dict__.pop("is_uphole", None)
         self._source_id_cols = cols
         if validate:
             self.calculate_source_headers(validate=validate)
@@ -158,9 +160,6 @@ class SurveyTraceHeaders(TraceHeaders):
         self.calculate_receiver_headers(validate=True)
         return self.receiver_headers
 
-    def invalidate_receiver_headers(self):
-        self.__dict__.pop("receiver_headers", None)
-
     @property
     def n_receivers(self):
         if self.receiver_headers is None:
@@ -172,7 +171,7 @@ class SurveyTraceHeaders(TraceHeaders):
         receiver-related trace headers by checking that each receiver has unique coordinates and surface elevation."""
         cols = self._validate_columns(cols)
         if self.receiver_id_cols != cols:
-            self.invalidate_receiver_headers()
+            self.__dict__.pop("receiver_headers", None)
         self._receiver_id_cols = cols
         if validate:
             self.calculate_receiver_headers(validate=validate)
@@ -196,16 +195,10 @@ class SurveyTraceHeaders(TraceHeaders):
         self.calculate_bin_headers(validate=True)
         return self.bin_headers
 
-    def invalidate_bin_headers(self):
-        self.__dict__.pop("bin_headers", None)
-
     @cached_property
     def bin_id_cols(self):
         self.calculate_bin_headers(validate=True)
         return self.bin_id_cols
-
-    def invalidate_bin_id_cols(self):
-        self.__dict__.pop("bin_id_cols", None)
 
     @property
     def n_bins(self):
@@ -339,18 +332,12 @@ class SurveyTraceHeaders(TraceHeaders):
         self.create_default_elevation_interpolator()
         return self.elevation_interpolator
 
-    def invalidate_elevation_interpolator(self):
-        self.__dict__.pop("elevation_interpolator", None)
-
     # Geometry calculation
 
     @cached_property
     def geometry(self):
         self.infer_geometry()
         return self.geometry
-
-    def invalidate_geometry(self):
-        self.__dict__.pop("geometry", None)
 
     def infer_geometry(self):
         # if self.bin_headers is None:
@@ -364,13 +351,68 @@ class SurveyTraceHeaders(TraceHeaders):
 
     # Cache invalidation
 
-    def invalidate_indexers(self, changed_cols=None):
-        # TODO
-        pass
+    @property
+    def cached_properties(self):
+        return [prop for prop, _ in getmembers(type(self), lambda x: isinstance(x, cached_property))]
 
-    def invalidate_cache(self, changed_cols=None, preserve_geometry=False):
-        self.invalidate_indexers(changed_cols)
-        # TODO
+    @property
+    def calculated_cached_properties(self):
+        return [prop for prop in self.cached_properties if prop in self.__dict__]
+
+    @property
+    def cached_properties_cols(self):
+        cols_dict = {}
+
+        if self.source_id_cols is not None:
+            source_id_cols_set = set(to_list(self.source_id_cols))
+            cols_dict["source_headers"] = source_id_cols_set | {"SourceX", "SourceY", "SourceSurfaceElevation",
+                                                                "SourceUpholeTime", "SourceDepth"}
+            cols_dict["is_uphole"] = source_id_cols_set | {"SourceUpholeTime", "SourceDepth"}
+
+        if self.receiver_id_cols is not None:
+            receiver_id_cols_set = set(to_list(self.receiver_id_cols))
+            cols_dict["receiver_headers"] = receiver_id_cols_set | {"GroupX", "GroupY", "ReceiverGroupElevation"}
+
+        elevation_interpolator = self.__dict__.get("elevation_interpolator")
+        if elevation_interpolator is not None:
+            elevation_interpolator_cols = {}
+            if elevation_interpolator.uses_source_headers:
+                elevation_interpolator_cols |= {"SourceX", "SourceY", "SourceSurfaceElevation"}
+            if elevation_interpolator.uses_receiver_headers:
+                elevation_interpolator_cols |= {"GroupX", "GroupY", "ReceiverGroupElevation"}
+            cols_dict["elevation_interpolator"] = elevation_interpolator_cols
+
+        cols_dict["bin_headers"] = {"CDP", "INLINE_3D", "CROSSLINE_3D", "CDP_X", "CDP_Y"}
+        cols_dict["bin_id_cols"] = {"CDP", "INLINE_3D", "CROSSLINE_3D"}
+        cols_dict["geometry"] = {"CDP", "INLINE_3D", "CROSSLINE_3D", "CDP_X", "CDP_Y"}
+        return cols_dict
+
+    def invalidate_indexers(self, updated_cols=None, changed_n_rows=False):
+        # Create a new indexers dict so that other surveys are not affected
+        if changed_n_rows:
+            self.indexers = {}
+        elif updated_cols is not None:
+            updated_cols_set = set(to_list(updated_cols))
+            self.indexers = {indexed_by: indexer for indexed_by, indexer in self.indexers.items()
+                            if not set(to_list(indexed_by)) & updated_cols_set}
+
+        if self.indexed_by not in self.indexers:
+            self.create_indexer(self.indexed_by)
+
+    def invalidate_cache(self, updated_cols=None, changed_n_rows=False, preserve_geometry=False):
+        self.invalidate_indexers(updated_cols, changed_n_rows)
+
+        if changed_n_rows:
+            calculated_cached_properties = set(self.calculated_cached_properties)
+            if preserve_geometry:
+                calculated_cached_properties -= {"geometry", "elevation_interpolator"}
+            for prop in calculated_cached_properties:
+                self.__dict__.pop(prop)
+        elif updated_cols is not None:
+            updated_cols_set = set(to_list(updated_cols))
+            for prop, prop_cols in self.cached_properties_cols.items():
+                if updated_cols_set & prop_cols:
+                    self.__dict__.pop(prop, None)
 
     # Invalidate cache if headers have changed
 
@@ -385,7 +427,7 @@ class SurveyTraceHeaders(TraceHeaders):
         res, mask = super().filter(cond, cols=cols, axis=axis, unpack_args=unpack_args, inplace=inplace,
                                    return_mask=True, **kwargs)
         if res.n_traces < old_n_traces:
-            self.invalidate_cache(preserve_geometry=preserve_geometry)
+            self.invalidate_cache(changed_n_rows=True, preserve_geometry=preserve_geometry)
 
         if return_mask:
             return res, mask
@@ -401,7 +443,8 @@ class SurveyTraceHeaders(TraceHeaders):
 
     def clone_cached_properties(self, other):
         """Clone calculated cached properties to self from other."""
-        pass
+        for prop in other.calculated_cached_properties:
+            self.__dict__[prop] = getattr(other, prop)
 
     def clone(self):
         cloned = type(self)(pd.DataFrame(self.headers), indexed_by=self.indexed_by, source_id_cols=self.source_id_cols,
@@ -418,14 +461,12 @@ class SurveyTraceHeaders(TraceHeaders):
         locs = self.get_traces_locs(indices, return_n_traces=return_n_traces)
         return self.headers.iloc[locs]
 
-    def reindex(self, index=None, inplace=False):
+    def reindex(self, indexed_by=None, inplace=False):
         if not inplace:
             self = self.clone()  # pylint: disable=self-cls-assignment
 
-        if index is not None:
-            index = self._validate_columns(index)
-            if index not in self.indexers:
-                self.indexers[index] = Indexer.from_dataframe(self.headers_polars, index)
-
-        self.indexed_by = index
+        if indexed_by is not None:
+            indexed_by = self._validate_columns(indexed_by)
+            self.create_indexer(indexed_by)
+        self.indexed_by = indexed_by
         return self
