@@ -47,7 +47,7 @@ class RefractorVelocityMetric(Metric):
     def set_defaults(self, **kwargs):
         """Set parameters needed for metric calculation as attributes.
         Does not update attributes that have already been set to anything but None.
-        
+
         Parameters
         ----------
         kwargs : misc
@@ -95,7 +95,7 @@ class RefractorVelocityMetric(Metric):
         res = np.empty((data.shape[0], n_samples), dtype=data.dtype)
         for i in range(n_samples):
             dt = (-n_samples / 2 + i) * sample_interval
-            res[:, i] = get_hodograph(data, offsets, sample_interval, delay, times + dt, fill_value=0)
+            res[:, i] = get_hodograph(data.T, offsets, sample_interval, delay, times + dt, fill_value=0)
         return res
 
     def plot_gather(self, coords, ax, index, sort_by=None, threshold=None, mask=True, top_header=True, **kwargs):
@@ -214,7 +214,7 @@ class FirstBreaksOutliers(RefractorVelocityMetric):
 
 class FirstBreaksAmplitudes(RefractorVelocityMetric):
     """Mean amplitude of the signal in the moment of first break after maxabs scaling.
-    
+
     Parameters
     ----------
     first_breaks_header : str, optional, defaults to None
@@ -237,7 +237,7 @@ class FirstBreaksAmplitudes(RefractorVelocityMetric):
         min_value, max_value = get_tracewise_quantile(gather_data, np.array([0, 1]))
         min_value, max_value = np.atleast_2d(min_value), np.atleast_2d(max_value)
         gather_data = scale_maxabs(gather_data, min_value=min_value, max_value=max_value, clip=False, eps=1e-10)
-        return get_hodograph(gather_data, offsets, sample_interval, delay, picking_times, fill_value=np.nan)
+        return get_hodograph(gather_data.T, offsets, sample_interval, delay, picking_times, fill_value=np.nan)
 
     def calc(self, gather, refractor_velocity=None):
         """Return signal amplitudes at first break times.
@@ -298,7 +298,7 @@ class FirstBreaksPhases(RefractorVelocityMetric):
         super().__init__(first_breaks_header, correct_uphole, name)
 
     def calc(self, gather, refractor_velocity=None):
-        """Return absolute deviation of the signal phase from target value in the moment of first break.        
+        """Return absolute deviation of the signal phase from target value in the moment of first break.
 
         Parameters
         ----------

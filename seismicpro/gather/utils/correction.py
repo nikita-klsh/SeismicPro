@@ -8,7 +8,7 @@ from numba import njit, prange
 
 
 @njit(nogil=True, fastmath=True)
-def get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times, max_offset=np.inf, interpolate=True,
+def get_hodograph(gather_data_t, offsets, sample_interval, delay, hodograph_times, max_offset=np.inf, interpolate=True,
                   fill_value=np.nan, out=None):
     """Retrieve hodograph amplitudes from the `gather_data`.
 
@@ -16,8 +16,8 @@ def get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times,
 
     Parameters
     ----------
-    gather_data : 2d np.ndarray
-        Gather data to retrieve hodograph amplitudes from. Should have (n_traces, n_samples) layout.
+    gather_data_t : 2d np.ndarray
+        Transposed gather data to retrieve hodograph amplitudes from. Should have (n_samples, n_traces) layout.
     offsets : 1d np.ndarray
         The distance between source and receiver for each trace. Measured in meters.
     sample_interval : float
@@ -43,38 +43,38 @@ def get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times,
     """
     n_times = len(hodograph_times)
     if out is None:
-        out = np.empty(n_times, dtype=gather_data.dtype)
+        out = np.empty(n_times, dtype=gather_data_t.dtype)
     for i in range(n_times):
         amplitude = fill_value
         hodograph_sample = (hodograph_times[i] - delay) / sample_interval
-        if offsets[i] < max_offset and 0 <= hodograph_sample <= gather_data.shape[0] - 1:
+        if offsets[i] < max_offset and 0 <= hodograph_sample <= gather_data_t.shape[0] - 1:
             if interpolate:
                 time_prev = math.floor(hodograph_sample)
                 time_next = math.ceil(hodograph_sample)
                 weight = time_next - hodograph_sample
-                amplitude = gather_data[time_prev, i] * weight + gather_data[time_next, i] * (1 - weight)
+                amplitude = gather_data_t[time_prev, i] * weight + gather_data_t[time_next, i] * (1 - weight)
             else:
-                amplitude = gather_data[round(hodograph_sample), i]
+                amplitude = gather_data_t[round(hodograph_sample), i]
         out[i] = amplitude
     return out
 
 
 @njit(nogil=True)
-def get_hyperbolic_hodograph(gather_data, offsets, sample_interval, delay, time, velocity,
+def get_hyperbolic_hodograph(gather_data_t, offsets, sample_interval, delay, time, velocity,
                                      interpolate=True, max_stretch_factor=np.inf, fill_value=np.nan, out=None):
     """Perform gather normal moveout correction with a single velocity and a single time."""
     hodograph_times = np.sqrt(time**2 + (offsets / velocity)**2)
     max_offset = time * velocity * np.sqrt((1 + max_stretch_factor)**2 - 1)
-    return get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times, max_offset=max_offset,
+    return get_hodograph(gather_data_t, offsets, sample_interval, delay, hodograph_times, max_offset=max_offset,
                          interpolate=interpolate, fill_value=fill_value, out=out)
 
 
 @njit(nogil=True)
-def get_linear_hodograph(gather_data, offsets, sample_interval, delay, time, velocity, interpolate=True,
+def get_linear_hodograph(gather_data_t, offsets, sample_interval, delay, time, velocity, interpolate=True,
                                      fill_value=np.nan, out=None):
     """Perform gather linear moveout correction with a single velocity and a single time."""
     hodograph_times = time + (offsets / velocity)
-    return get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times, interpolate=interpolate,
+    return get_hodograph(gather_data_t, offsets, sample_interval, delay, hodograph_times, interpolate=interpolate,
                          fill_value=fill_value, out=out)
 
 
@@ -88,9 +88,9 @@ def apply_constant_velocity_nmo(gather_data, offsets, sample_interval, delay, ti
     """
     corrected_gather_data = np.full((len(offsets), len(times)), fill_value=fill_value, dtype=gather_data.dtype)
     for i in prange(len(times)):
-        get_hyperbolic_hodograph(gather_data, offsets, sample_interval, delay, times[i], velocity,
-                                         interpolate=interpolate, max_stretch_factor=max_stretch_factor,
-                                         fill_value=fill_value, out=corrected_gather_data[:, i])
+        get_hyperbolic_hodograph(gather_data.T, offsets, sample_interval, delay, times[i], velocity,
+                                 interpolate=interpolate, max_stretch_factor=max_stretch_factor, fill_value=fill_value,
+                                 out=corrected_gather_data[:, i])
     return corrected_gather_data
 
 
@@ -171,7 +171,7 @@ def apply_nmo(gather_data, offsets, sample_interval, delay, times, velocities, v
     # Correct and mute the gather
     corrected_gather_data = np.full((len(offsets), len(times)), fill_value=fill_value, dtype=gather_data.dtype)
     for i in prange(len(times)):
-        get_hodograph(gather_data, offsets, sample_interval, delay, hodograph_times[i], max_offset=max_offsets[i],
+        get_hodograph(gather_data.T, offsets, sample_interval, delay, hodograph_times[i], max_offset=max_offsets[i],
                       interpolate=interpolate, fill_value=fill_value, out=corrected_gather_data[:, i])
     return corrected_gather_data
 

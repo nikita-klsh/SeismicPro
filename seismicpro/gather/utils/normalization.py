@@ -43,7 +43,6 @@ def get_tracewise_mean_std(data):
     -------
     mean, std : tuple of 2d np.ndarrays of `data.dtype`
         Calculated statistics broadcastable to `data.shape`
-    
     """
     n_traces = data.shape[0]
     mean = np.empty((n_traces, 1), dtype=data.dtype)
@@ -87,7 +86,7 @@ def get_tracewise_quantile(data, q):
         Data to compute quantiles on.
     q : 1d np.ndarray of floats
         Quantiles to compute, which must be between 0 and 1 inclusive.
-    
+
     Returns
     -------
     q : 2d np.ndarray of floats
