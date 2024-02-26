@@ -5,7 +5,7 @@ from functools import partial
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
-from ..utils import to_list, get_first_defined, calculate_axis_limits
+from ..utils import to_list, get_first_defined
 from ..utils import InteractivePlot, PairedPlot, set_ticks, set_text_formatting, get_text_formatting_kwargs
 from ..metrics import MetricMap
 from ..metrics.interactive_map import NonOverlayingIndicesPlot, OverlayingIndicesPlot
@@ -28,6 +28,7 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
         if not {"SourceX", "SourceY", "GroupX", "GroupY"} <= set(survey.headers.headers.columns):
             raise ValueError("Source and receiver coordinates should be loaded to plot survey geometry")
         has_elevation_view = "SourceSurfaceElevation" in survey.headers or "ReceiverGroupElevation" in survey.headers
+        # TODO: show elevation view
 
         kwargs = {"fontsize": fontsize, **kwargs}
         (x_ticker, y_ticker), self.scatter_kwargs = set_text_formatting(x_ticker, y_ticker, **kwargs)
@@ -66,22 +67,13 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
         self.receiver_sort_by = get_first_defined(receiver_sort_by, sort_by)
 
         # Calculate axes limits to fix them to avoid map plot shifting on view toggle
-        x_lim = calculate_axis_limits([self.source_coords[:, 0].min(), self.source_coords[:, 0].max(),
-                                       self.receiver_coords[:, 0].min(), self.receiver_coords[:, 0].max()])
-        y_lim = calculate_axis_limits([self.source_coords[:, 1].min(), self.source_coords[:, 1].max(),
-                                       self.receiver_coords[:, 1].min(), self.receiver_coords[:, 1].max()])
-        if keep_aspect:
-            x_mean = (x_lim[1] + x_lim[0]) / 2
-            x_len = x_lim[1] - x_lim[0]
-            y_mean = (y_lim[1] + y_lim[0]) / 2
-            y_len = y_lim[1] - y_lim[0]
-            max_len = max(x_len, y_len)
-            x_lim = (x_mean - max_len / 2, x_mean + max_len / 2)
-            y_lim = (y_mean - max_len / 2, y_mean + max_len / 2)
+        min_bound = np.minimum(self.source_coords.min(axis=0), self.receiver_coords.min(axis=0))
+        max_bound = np.maximum(self.source_coords.max(axis=0), self.receiver_coords.max(axis=0))
+        data_lim = [min_bound, max_bound]
 
         # TODO: plot geometry
-        self.plot_map = partial(self._plot_map, contours=None, x_lim=x_lim, y_lim=y_lim, x_ticker=x_ticker,
-                                y_ticker=y_ticker, **self.scatter_kwargs)
+        self.plot_map = partial(self._plot_map, contours=None, data_lim=data_lim, keep_aspect=keep_aspect,
+                                x_ticker=x_ticker, y_ticker=y_ticker, **self.scatter_kwargs)
         self.plot_gather = partial(self._plot_gather, **gather_plot_kwargs)
         self.activated_scatter = None
 
@@ -90,7 +82,8 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
     def construct_main_plot(self):
         """Construct a clickable plot of source and receiver locations."""
         return InteractivePlot(plot_fn=[self.plot_map, self.plot_map], click_fn=self.click, unclick_fn=self.unclick,
-                               title=["Map of sources", "Map of receivers"], figsize=self.figsize)
+                               title=["Map of sources", "Map of receivers"], preserve_lims_on_view_change=True,
+                               figsize=self.figsize)
 
     def construct_aux_plot(self):
         """Construct a gather plot."""
@@ -168,7 +161,7 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
         """str: Label of the Y map axis depending on the current view."""
         return "SourceY" if self.is_shot_view else "GroupY"
 
-    def _plot_map(self, ax, contours, x_lim, y_lim, x_ticker, y_ticker, **kwargs):
+    def _plot_map(self, ax, contours, data_lim, keep_aspect, x_ticker, y_ticker, **kwargs):
         """Plot locations of sources or receivers depending on the current view."""
         self.aux.clear()
         self.aux.box.layout.visibility = "hidden"
@@ -177,8 +170,9 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
         if contours is not None:
             for contour in contours:
                 ax.fill(contour[:, 0, 0], contour[:, 0, 1], facecolor="gray", edgecolor="black", alpha=0.5)
-        ax.set_xlim(*x_lim)
-        ax.set_ylim(*y_lim)
+        ax.update_datalim(data_lim)
+        if keep_aspect:
+            ax.set_aspect("equal", adjustable="datalim")
         ax.ticklabel_format(style="plain", useOffset=False)
         set_ticks(ax, "x", self.map_x_label, **x_ticker)
         set_ticks(ax, "y", self.map_y_label, **y_ticker)
