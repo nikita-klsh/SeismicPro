@@ -318,13 +318,12 @@ def calculate_bin_headers(headers, validate=True, warn_width=80):
             return bin_headers, bin_indexer, None, format_warning(warn_str, width=warn_width)
         return bin_headers, bin_indexer, None, None
 
-    headers = headers.lazy().with_row_index("locs")
+    headers = headers.with_row_index("locs")
     common_expr_list = [pl.col("locs"), pl.count("locs").alias("n_rows")]
     bin_expr_list = [pl.mean("CDP_X", "CDP_Y"), pl.n_unique("CDP_X", "CDP_Y").name.prefix("n_")]
     cdp_expr_list = [pl.mean(bin_id_cols), pl.n_unique(bin_id_cols).name.prefix("n_")]
     grouped_bin = headers.group_by(bin_id_cols).agg(common_expr_list + bin_expr_list).sort(bin_id_cols)
     grouped_cdp = headers.group_by("CDP_X", "CDP_Y").agg(common_expr_list + cdp_expr_list).sort("CDP_X", "CDP_Y")
-    grouped_bin, grouped_cdp = pl.collect_all([grouped_bin, grouped_cdp])
 
     bin_headers = grouped_bin.select(bin_id_cols_list + ["CDP_X", "CDP_Y"]).to_pandas(use_pyarrow_extension_array=True)
     bin_indexer = grouped_bin.select(bin_id_cols_list + ["locs", "n_rows"]).to_pandas(use_pyarrow_extension_array=True)
