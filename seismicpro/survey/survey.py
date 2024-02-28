@@ -1,6 +1,9 @@
+from functools import partial
+
 import numpy as np
 import pandas as pd
 import polars as pl
+from tqdm.auto import tqdm
 
 from .loader import Loader, DummyLoader, SEGYLoader
 from .plot_geometry import SurveyGeometryPlot
@@ -29,7 +32,9 @@ class Survey(SamplesContainer):
         loader = SEGYLoader(path, sample_interval=sample_interval, delay=delay, limits=limits, endian=endian)
 
         header_cols = header_cols  # TODO: merge with indexed_by, source_id_cols and receiver_id_cols
-        headers = loader.load_headers(header_cols, chunk_size=chunk_size, n_workers=n_workers, bar=bar)
+
+        pbar = partial(tqdm, desc="Trace headers loaded") if bar else False
+        headers = loader.load_headers(header_cols, chunk_size=chunk_size, n_workers=n_workers, pbar=pbar)
         headers = SurveyTraceHeaders(headers, indexed_by=indexed_by, source_id_cols=source_id_cols,
                                      receiver_id_cols=receiver_id_cols, validate=validate,
                                      infer_geometry=infer_geometry)
