@@ -442,7 +442,10 @@ class SurveyTraceHeaders(TraceHeaders):
     def clone_cached_properties(self, other):
         """Clone calculated cached properties to self from other."""
         for prop in other.calculated_cached_properties:
-            self.__dict__[prop] = getattr(other, prop)
+            val = getattr(other, prop)
+            if isinstance(val, pd.DataFrame):
+                val = pd.DataFrame(val)
+            self.__dict__[prop] = val
 
     def clone(self):
         cloned = type(self)(pd.DataFrame(self.headers), indexed_by=self.indexed_by, source_id_cols=self.source_id_cols,
