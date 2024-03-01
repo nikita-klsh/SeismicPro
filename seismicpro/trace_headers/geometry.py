@@ -106,7 +106,7 @@ class Geometry2D(Geometry):
         super().validate(cv_threshold=cv_threshold)
 
     @plotter(figsize=(5, 5))
-    def plot(self, ax=None, is_geographic=None, color="gray", linewidth=3, alpha=0.5, **kwargs):
+    def plot(self, ax=None, is_geographic=None, color="gray", linewidth=3, alpha=0.9, **kwargs):
         if is_geographic is None:
             is_geographic = True
         if not is_geographic:

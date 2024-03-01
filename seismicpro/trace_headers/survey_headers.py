@@ -7,6 +7,7 @@ import pandas as pd
 
 from .trace_headers import TraceHeaders
 from .indexer import Indexer
+from .geometry import infer_geometry
 from .validation import (validate_trace_headers, calculate_source_headers, calculate_receiver_headers,
                          calculate_bin_headers)
 from ..utils import to_list
@@ -340,13 +341,10 @@ class SurveyTraceHeaders(TraceHeaders):
         return self.geometry
 
     def infer_geometry(self):
-        # if self.bin_headers is None:
-        #     geometry = None
-        # elif self.is_2d:
-        #     geometry = Geometry2D(self.bin_headers)
-        # else:
-        #     geometry = Geometry3D(self.bin_headers)
-        geometry = None
+        if self.bin_headers is None:
+            geometry = None
+        else:
+            geometry = infer_geometry(self.bin_headers)
         self.__dict__["geometry"] = geometry
 
     # Cache invalidation

@@ -22,7 +22,7 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
     """
 
     #pylint: disable-next=too-many-arguments
-    def __init__(self, survey, show_contour=True, keep_aspect=True, source_id_cols=None, source_sort_by=None,
+    def __init__(self, survey, geometry=None, keep_aspect=True, source_id_cols=None, source_sort_by=None,
                  receiver_id_cols=None, receiver_sort_by=None, sort_by=None, gather_plot_kwargs=None, x_ticker=None,
                  y_ticker=None, figsize=(4.5, 4.5), fontsize=8, orientation="horizontal", **kwargs):
         if not {"SourceX", "SourceY", "GroupX", "GroupY"} <= set(survey.headers.headers.columns):
@@ -71,8 +71,9 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
         max_bound = np.maximum(self.source_coords.max(axis=0), self.receiver_coords.max(axis=0))
         data_lim = [min_bound, max_bound]
 
-        # TODO: plot geometry
-        self.plot_map = partial(self._plot_map, contours=None, data_lim=data_lim, keep_aspect=keep_aspect,
+        if geometry is None:
+            geometry = survey.geometry
+        self.plot_map = partial(self._plot_map, geometry=geometry, data_lim=data_lim, keep_aspect=keep_aspect,
                                 x_ticker=x_ticker, y_ticker=y_ticker, **self.scatter_kwargs)
         self.plot_gather = partial(self._plot_gather, **gather_plot_kwargs)
         self.activated_scatter = None
@@ -161,15 +162,15 @@ class SurveyGeometryPlot(PairedPlot):  # pylint: disable=too-many-instance-attri
         """str: Label of the Y map axis depending on the current view."""
         return "SourceY" if self.is_shot_view else "GroupY"
 
-    def _plot_map(self, ax, contours, data_lim, keep_aspect, x_ticker, y_ticker, **kwargs):
+    def _plot_map(self, ax, geometry, data_lim, keep_aspect, x_ticker, y_ticker, **kwargs):
         """Plot locations of sources or receivers depending on the current view."""
         self.aux.clear()
         self.aux.box.layout.visibility = "hidden"
 
         ax.scatter(*self.coords.T, color=self.main_color, marker=self.main_marker, **kwargs)
-        if contours is not None:
-            for contour in contours:
-                ax.fill(contour[:, 0, 0], contour[:, 0, 1], facecolor="gray", edgecolor="black", alpha=0.5)
+        if geometry is not None:
+            geometry.plot(ax=ax)
+
         ax.update_datalim(data_lim)
         if keep_aspect:
             ax.set_aspect("equal", adjustable="datalim")
