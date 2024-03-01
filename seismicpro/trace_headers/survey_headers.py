@@ -16,16 +16,17 @@ from ..utils.interpolation import IDWInterpolator, DelaunayInterpolator, CloughT
 
 class SurveyTraceHeaders(TraceHeaders):
     PUBLIC_ATTRIBUTES = ["indexers", "indexed_by"]
-    PUBLIC_PROPERTIES = ["n_traces", "is_empty", "indexer", "indices", "n_gathers", "source_id_cols", "source_headers",
-                         "is_uphole", "n_sources", "receiver_id_cols", "receiver_headers", "n_receivers",
-                         "bin_headers", "bin_id_cols", "n_bins", "is_stacked", "is_2d", "is_3d",
+    PUBLIC_PROPERTIES = ["n_traces", "is_empty", "indexer", "indices", "n_gathers", "index", "source_id_cols",
+                         "source_headers", "is_uphole", "n_sources", "receiver_id_cols", "receiver_headers",
+                         "n_receivers", "bin_headers", "bin_id_cols", "n_bins", "is_stacked", "is_2d", "is_3d",
                          "elevation_interpolator", "geometry", "cached_properties", "calculated_cached_properties",
                          "cached_properties_cols"]
-    PUBLIC_METHODS = ["__getitem__", "__setitem__", "get_headers", "add_indexer", "set_source_id_cols",
-                      "calculate_source_headers", "set_receiver_id_cols", "calculate_receiver_headers",
-                      "calculate_bin_headers", "validate_headers", "get_elevation_interpolator",
-                      "create_elevation_interpolator", "create_default_elevation_interpolator", "infer_geometry",
-                      "invalidate_indexers", "invalidate_cache", "get_traces_locs", "get_headers_by_indices"]
+    PUBLIC_METHODS = ["__getitem__", "__setitem__", "get_headers", "add_indexer", "create_indexer", "reset",
+                      "set_source_id_cols", "calculate_source_headers", "set_receiver_id_cols",
+                      "calculate_receiver_headers", "calculate_bin_headers", "validate_headers",
+                      "get_elevation_interpolator", "create_elevation_interpolator",
+                      "create_default_elevation_interpolator", "infer_geometry", "invalidate_indexers",
+                      "invalidate_cache", "get_traces_locs", "get_headers_by_indices"]
 
     def __init__(self, headers, indexed_by=None, source_id_cols=None, receiver_id_cols=None, indexers=None,
                  validate=True, infer_geometry=True):
@@ -77,6 +78,12 @@ class SurveyTraceHeaders(TraceHeaders):
             return None
         return len(self.indices)
 
+    @property
+    def index(self):
+        if self.indexer is None:
+            return None
+        return self.indexer.index
+
     def add_indexer(self, indexer=None):
         if indexer is None:
             return
@@ -89,6 +96,10 @@ class SurveyTraceHeaders(TraceHeaders):
         if indexed_by not in self.indexers:
             indexer = Indexer.from_dataframe(self.headers_polars, indexed_by)
             self.add_indexer(indexer)
+
+    def reset(self, what="iter"):
+        if self.indexer is not None:
+            self.indexer.reset(what=what)
 
     # Source headers properties and processing methods
 
@@ -459,8 +470,11 @@ class SurveyTraceHeaders(TraceHeaders):
         return self.indexer.get_locs(indices, return_n_rows=return_n_traces)
 
     def get_headers_by_indices(self, indices, return_n_traces=False):
-        locs = self.get_traces_locs(indices, return_n_traces=return_n_traces)
-        return self.headers.iloc[locs]
+        locs, n_traces = self.get_traces_locs(indices, return_n_traces=True)
+        headers = self.headers.iloc[locs]
+        if return_n_traces:
+            return headers, n_traces
+        return headers
 
     def reindex(self, indexed_by=None, inplace=False):
         if not inplace:
@@ -470,4 +484,5 @@ class SurveyTraceHeaders(TraceHeaders):
             indexed_by = self._validate_columns(indexed_by)
             self.create_indexer(indexed_by)
         self.indexed_by = indexed_by
+        self.reset()
         return self

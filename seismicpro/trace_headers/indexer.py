@@ -1,5 +1,6 @@
 import pandas as pd
 import polars as pl
+from batchflow import DatasetIndex
 
 from ..utils import to_list
 
@@ -12,6 +13,7 @@ class Indexer:
             raise ValueError
         self.indexer = indexer
         self.indices = indexer.index.to_numpy()
+        self.index = DatasetIndex(self.n_indices)
 
     @property
     def index_cols(self):
@@ -19,6 +21,10 @@ class Indexer:
         if len(index_cols) == 1:
             return index_cols[0]
         return index_cols
+
+    @property
+    def n_indices(self):
+        return len(self.indexer)
 
     @classmethod
     def from_dataframe(cls, df, index_cols):
@@ -41,3 +47,6 @@ class Indexer:
             n_rows = subset["n_rows"].to_numpy()
             return locs, n_rows
         return locs
+
+    def reset(self, what="iter"):
+        self.index.reset(what=what)
