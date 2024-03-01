@@ -29,8 +29,8 @@ class Survey(SamplesContainer):
 
     @classmethod
     def from_segy_file(cls, path, header_cols, indexed_by=None, source_id_cols=None, receiver_id_cols=None,
-                       sample_interval=None, delay=0, limits=None, validate=True, infer_geometry=True, endian="big",
-                       chunk_size=25000, n_workers=None, bar=True):
+                       sample_interval=None, delay=0, limits=None, validate=True, endian="big", chunk_size=25000,
+                       n_workers=None, bar=True):
         loader = SEGYLoader(path, sample_interval=sample_interval, delay=delay, limits=limits, endian=endian)
 
         header_cols = header_cols  # TODO: merge with indexed_by, source_id_cols and receiver_id_cols
@@ -38,8 +38,7 @@ class Survey(SamplesContainer):
         pbar = partial(tqdm, desc="Trace headers loaded") if bar else False
         headers = loader.load_headers(header_cols, chunk_size=chunk_size, n_workers=n_workers, pbar=pbar)
         headers = SurveyTraceHeaders(headers, indexed_by=indexed_by, source_id_cols=source_id_cols,
-                                     receiver_id_cols=receiver_id_cols, validate=validate,
-                                     infer_geometry=infer_geometry)
+                                     receiver_id_cols=receiver_id_cols, validate=validate)
         return cls(headers, loader)
 
     @classmethod

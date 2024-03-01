@@ -29,7 +29,7 @@ class SurveyTraceHeaders(TraceHeaders):
                       "invalidate_cache", "get_traces_locs", "get_headers_by_indices"]
 
     def __init__(self, headers, indexed_by=None, source_id_cols=None, receiver_id_cols=None, indexers=None,
-                 validate=True, infer_geometry=True):
+                 validate=True):
         super().__init__(headers, indexed_by=indexed_by)
 
         if indexers is None:
@@ -51,7 +51,6 @@ class SurveyTraceHeaders(TraceHeaders):
 
         if validate:
             self.validate_headers()
-        if infer_geometry:
             self.create_default_elevation_interpolator()
             self.infer_geometry()
 
@@ -480,6 +479,7 @@ class SurveyTraceHeaders(TraceHeaders):
         if not inplace:
             self = self.clone()  # pylint: disable=self-cls-assignment
 
+        print("After clone")
         if indexed_by is not None:
             indexed_by = self._validate_columns(indexed_by)
             self.create_indexer(indexed_by)
