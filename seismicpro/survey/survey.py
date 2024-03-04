@@ -77,12 +77,11 @@ class Survey(SamplesContainer):
 
     # Implement methods for trace headers processing
 
-    def filter(self, cond, cols=None, axis=None, unpack_args=False, inplace=False, return_mask=False,
-               preserve_geometry=True, **kwargs):
+    def filter(self, cond, cols=None, axis=None, unpack_args=False, inplace=False, return_mask=False, **kwargs):
         if not inplace:
             self = self.clone()  # pylint: disable=self-cls-assignment
         _, mask = self.headers.filter(cond, cols, axis=axis, unpack_args=unpack_args, inplace=True, return_mask=True,
-                                      preserve_geometry=preserve_geometry, **kwargs)
+                                      **kwargs)
         if return_mask:
             return self, mask
         return self

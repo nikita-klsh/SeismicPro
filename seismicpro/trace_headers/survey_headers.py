@@ -384,7 +384,7 @@ class SurveyTraceHeaders(TraceHeaders):
 
         elevation_interpolator = self.__dict__.get("elevation_interpolator")
         if elevation_interpolator is not None:
-            elevation_interpolator_cols = {}
+            elevation_interpolator_cols = set()
             if elevation_interpolator.uses_source_headers:
                 elevation_interpolator_cols |= {"SourceX", "SourceY", "SourceSurfaceElevation"}
             if elevation_interpolator.uses_receiver_headers:
@@ -396,31 +396,28 @@ class SurveyTraceHeaders(TraceHeaders):
         cols_dict["geometry"] = {"CDP", "INLINE_3D", "CROSSLINE_3D", "CDP_X", "CDP_Y"}
         return cols_dict
 
-    def invalidate_indexers(self, updated_cols=None, changed_n_rows=False):
+    def invalidate_indexers(self, changed_cols=None):
         # Create a new indexers dict so that other surveys are not affected
-        if changed_n_rows:
+        if changed_cols is None:
             self.indexers = {}
-        elif updated_cols is not None:
-            updated_cols_set = set(to_list(updated_cols))
+        else:
+            changed_cols_set = set(to_list(changed_cols))
             self.indexers = {indexed_by: indexer for indexed_by, indexer in self.indexers.items()
-                            if not set(to_list(indexed_by)) & updated_cols_set}
+                                                 if not set(to_list(indexed_by)) & changed_cols_set}
 
         if self.indexed_by not in self.indexers:
             self.create_indexer(self.indexed_by)
 
-    def invalidate_cache(self, updated_cols=None, changed_n_rows=False, preserve_geometry=False):
-        self.invalidate_indexers(updated_cols, changed_n_rows)
+    def invalidate_cache(self, changed_cols=None):
+        self.invalidate_indexers(changed_cols=changed_cols)
 
-        if changed_n_rows:
-            calculated_cached_properties = set(self.calculated_cached_properties)
-            if preserve_geometry:
-                calculated_cached_properties -= {"geometry", "elevation_interpolator"}
-            for prop in calculated_cached_properties:
+        if changed_cols is None:
+            for prop in self.calculated_cached_properties:
                 self.__dict__.pop(prop)
-        elif updated_cols is not None:
-            updated_cols_set = set(to_list(updated_cols))
+        else:
+            changed_cols_set = set(to_list(changed_cols))
             for prop, prop_cols in self.cached_properties_cols.items():
-                if updated_cols_set & prop_cols:
+                if changed_cols_set & prop_cols:
                     self.__dict__.pop(prop, None)
 
     # Invalidate cache if headers have changed
@@ -430,13 +427,12 @@ class SurveyTraceHeaders(TraceHeaders):
         super().__setitem__(key, value)
         self.invalidate_cache(key)
 
-    def filter(self, cond, cols=None, axis=None, unpack_args=False, inplace=False, return_mask=False,
-               preserve_geometry=True, **kwargs):
+    def filter(self, cond, cols=None, axis=None, unpack_args=False, inplace=False, return_mask=False, **kwargs):
         old_n_traces = self.n_traces
         res, mask = super().filter(cond, cols=cols, axis=axis, unpack_args=unpack_args, inplace=inplace,
                                    return_mask=True, **kwargs)
         if res.n_traces < old_n_traces:
-            self.invalidate_cache(changed_n_rows=True, preserve_geometry=preserve_geometry)
+            self.invalidate_cache()
 
         if return_mask:
             return res, mask
