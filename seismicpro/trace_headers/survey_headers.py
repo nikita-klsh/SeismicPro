@@ -53,9 +53,8 @@ class SurveyTraceHeaders(TraceHeaders):
         if validate:
             self.validate_headers()
             self.create_default_elevation_interpolator()
-            self.infer_geometry()
 
-        # Reindex after validate and infer_geometry: an appropriate indexer may have been already created
+        # Reindex after headers validation: an appropriate indexer may already have been created
         self.reindex(indexed_by, inplace=True)
 
     # Indexer properties and processing methods
@@ -251,22 +250,6 @@ class SurveyTraceHeaders(TraceHeaders):
         if warn_str is not None:
             warnings.warn(warn_str, RuntimeWarning)
 
-    # Headers validation
-
-    def validate_headers(self, offset_atol=10, cdp_atol=10, elevation_atol=5, elevation_radius=50):
-        warn_list = [
-            validate_trace_headers(self.headers_polars, offset_atol=offset_atol, cdp_atol=cdp_atol,
-                                   elevation_atol=elevation_atol, elevation_radius=elevation_radius),
-            self._calculate_source_headers(validate=True),
-            self._calculate_receiver_headers(validate=True),
-            self._calculate_bin_headers(validate=True),
-        ]
-        warn_list = [warn for warn in warn_list if warn is not None]
-        if warn_list:
-            warn_list = [warn.rstrip("-\n") for warn in warn_list[:-1]] + [warn_list[-1]]
-            warn_list = [warn_list[0]] + [warn.lstrip("-\n") for warn in warn_list[1:]]
-            warnings.warn("\n\n\n".join(warn_list), RuntimeWarning)
-
     # Elevation interpolator calculation
 
     @property
@@ -351,12 +334,32 @@ class SurveyTraceHeaders(TraceHeaders):
         self.infer_geometry()
         return self.geometry
 
-    def infer_geometry(self):
-        if self.bin_headers is None:
-            geometry = None
-        else:
-            geometry = infer_geometry(self.bin_headers)
+    def _infer_geometry(self, validate=True):
+        geometry, warn_str = infer_geometry(self.bin_headers, validate=validate)
         self.__dict__["geometry"] = geometry
+        return warn_str
+
+    def infer_geometry(self, validate=True):
+        warn_str = self._infer_geometry(validate=validate)
+        if warn_str is not None:
+            warnings.warn(warn_str, RuntimeWarning)
+
+    # Headers validation
+
+    def validate_headers(self, offset_atol=10, cdp_atol=10, elevation_atol=5, elevation_radius=50):
+        warn_list = [
+            validate_trace_headers(self.headers_polars, offset_atol=offset_atol, cdp_atol=cdp_atol,
+                                   elevation_atol=elevation_atol, elevation_radius=elevation_radius),
+            self._calculate_source_headers(validate=True),
+            self._calculate_receiver_headers(validate=True),
+            self._calculate_bin_headers(validate=True),
+            self._infer_geometry(validate=True),
+        ]
+        warn_list = [warn for warn in warn_list if warn is not None]
+        if warn_list:
+            warn_list = [warn.rstrip("-\n") for warn in warn_list[:-1]] + [warn_list[-1]]
+            warn_list = [warn_list[0]] + [warn.lstrip("-\n") for warn in warn_list[1:]]
+            warnings.warn("\n\n\n".join(warn_list), RuntimeWarning)
 
     # Cache invalidation
 

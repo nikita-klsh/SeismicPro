@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
+from .validation import format_warning
 from ..decorators import plotter
 
 
@@ -257,7 +258,7 @@ class Geometry3D(Geometry):
 
     def bins_to_coords(self, bins):
         return self._cast_coords(bins, self._bins_to_coords)
-    
+
     @staticmethod
     def _dist_to_contours(coords, contours):
         coords = np.array(coords, dtype=np.float32)
@@ -301,7 +302,7 @@ class Geometry3D(Geometry):
             threshold = (self.bin_size[0]**2 + self.bin_size[1]**2)**0.5 / 2
         if self.fit_loss < threshold:
             return None
-        return f"The transform from bins to coords if poorly fit"
+        return "The transform from bins to coords is poorly fit"
 
     def validate(self, threshold=None):
         super().validate(threshold=threshold)
@@ -318,7 +319,7 @@ class Geometry3D(Geometry):
             ax.fill(contour[:, 0, 0], contour[:, 0, 1], color=color, edgecolor=edgecolor, alpha=alpha, **kwargs)
 
 
-def infer_geometry(bin_headers, validate=True):
+def infer_geometry(bin_headers, validate=True, warn_width=80):
     if isinstance(bin_headers, pd.DataFrame):
         bin_headers = pl.from_pandas(bin_headers)
     if not isinstance(bin_headers, pl.DataFrame):
@@ -334,9 +335,11 @@ def infer_geometry(bin_headers, validate=True):
     else:
         raise ValueError
 
+    msg_list = []
+
     bins_int = np.require(bins, np.int32)
     if validate and not np.allclose(bins, bins_int):
-        warnings.warn("Bin index can not be safely cast to integer type")
+        msg_list.append("Bin index can not be safely cast to integer type")
 
     coords = bin_headers.get(["CDP_X", "CDP_Y"])
     if coords is not None:
@@ -346,6 +349,10 @@ def infer_geometry(bin_headers, validate=True):
     if validate:
         msg = geometry._validate()
         if msg is not None:
-            warnings.warn(msg)
+            msg_list.append(msg)
 
-    return geometry
+    if validate and msg_list:
+        warn_str = "Survey geometry has the following problems:"
+        warn_str = format_warning(warn_str, msg_list, width=warn_width)
+        return geometry, warn_str
+    return geometry, None
