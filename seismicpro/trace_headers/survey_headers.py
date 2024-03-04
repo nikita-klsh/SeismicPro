@@ -26,7 +26,8 @@ class SurveyTraceHeaders(TraceHeaders):
                       "calculate_receiver_headers", "calculate_bin_headers", "validate_headers",
                       "get_elevation_interpolator", "create_elevation_interpolator",
                       "create_default_elevation_interpolator", "infer_geometry", "invalidate_indexers",
-                      "invalidate_cache", "get_traces_locs", "get_headers_by_indices"]
+                      "invalidate_cache", "get_traces_locs_by_gather_indices", "get_headers_by_gather_indices",
+                      "get_traces_locs_by_gather_positions", "get_headers_by_gather_positions"]
 
     def __init__(self, headers, indexed_by=None, source_id_cols=None, receiver_id_cols=None, indexers=None,
                  validate=True):
@@ -465,11 +466,21 @@ class SurveyTraceHeaders(TraceHeaders):
 
     # Headers processing methods
 
-    def get_traces_locs(self, indices, return_n_traces=False):
-        return self.indexer.get_locs(indices, return_n_rows=return_n_traces)
+    def get_traces_locs_by_gather_indices(self, indices, return_n_traces=False):
+        return self.indexer.get_locs_by_indices(indices, return_n_rows=return_n_traces)
 
-    def get_headers_by_indices(self, indices, return_n_traces=False):
-        locs, n_traces = self.get_traces_locs(indices, return_n_traces=True)
+    def get_headers_by_gather_indices(self, indices, return_n_traces=False):
+        locs, n_traces = self.get_traces_locs_by_gather_indices(indices, return_n_traces=True)
+        headers = self.headers.iloc[locs]
+        if return_n_traces:
+            return headers, n_traces
+        return headers
+
+    def get_traces_locs_by_gather_positions(self, positions, return_n_traces=False):
+        return self.indexer.get_locs_by_positions(positions, return_n_rows=return_n_traces)
+
+    def get_headers_by_gather_positions(self, positions, return_n_traces=False):
+        locs, n_traces = self.get_traces_locs_by_gather_positions(positions, return_n_traces=True)
         headers = self.headers.iloc[locs]
         if return_n_traces:
             return headers, n_traces

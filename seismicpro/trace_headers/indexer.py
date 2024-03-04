@@ -39,8 +39,17 @@ class Indexer:
         indexer.set_index(index_cols, inplace=True)
         return cls(indexer)
 
-    def get_locs(self, indices, return_n_rows=False):
+    def get_locs_by_indices(self, indices, return_n_rows=False):
         subset = self.indexer.loc[indices]
+        locs = subset["locs"].list.flatten().to_numpy()
+
+        if return_n_rows:
+            n_rows = subset["n_rows"].to_numpy()
+            return locs, n_rows
+        return locs
+
+    def get_locs_by_positions(self, positions, return_n_rows=False):
+        subset = self.indexer.iloc[positions]
         locs = subset["locs"].list.flatten().to_numpy()
 
         if return_n_rows:

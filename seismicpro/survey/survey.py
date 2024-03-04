@@ -107,14 +107,7 @@ class Survey(SamplesContainer):
         return Gather(headers=headers, data=data, sample_interval=sample_interval, delay=delay, survey=self)
 
     def get_gather(self, index, limits=None, **loader_kwargs):
-        return self.load_gather(self.get_headers_by_indices([index,]), limits=limits, **loader_kwargs)
-
-    def get_gathers(self, indices, limits=None, **loader_kwargs):
-        headers, n_traces = self.get_headers_by_indices(indices, return_n_traces=True)
-        gather = self.load_gather(headers, limits=limits, **loader_kwargs)
-        bounds = np.cumsum(np.concatenate([[0], n_traces]))
-        gathers = [gather[start:stop] for start, stop in zip(bounds[:-1], bounds[1:])]
-        return gathers
+        return self.load_gather(self.get_headers_by_gather_indices([index,]), limits=limits, **loader_kwargs)
 
     def sample_gather(self, limits=None, **loader_kwargs):
         return self.get_gather(index=np.random.choice(self.indices), limits=limits, **loader_kwargs)
@@ -184,15 +177,21 @@ class Survey(SamplesContainer):
         pos = self.index.next_batch(batch_size, shuffle, n_iters, n_epochs, drop_last, iter_params)
         return self.create_batch(pos, component=component)
 
-    def create_batch(self, pos, component=None):
+    def _get_gather_component(self, positions, limits=None, **loader_kwargs):
+        headers, n_traces = self.get_headers_by_gather_positions(positions, return_n_traces=True)
+        gather = self.load_gather(headers, limits=limits, **loader_kwargs)
+        bounds = np.cumsum(np.concatenate([[0], n_traces]))
+        return np.array([gather[start:stop] for start, stop in zip(bounds[:-1], bounds[1:])])
+
+    def create_batch(self, positions, component=None):
         if component is None:
             if not self.has_name:
                 raise ValueError
             component = self.name
-        if not isinstance(pos, DatasetIndex):
-            pos = DatasetIndex(pos)
-        batch = SeismicBatch(pos)
-        batch.add_components(component, init=np.array(self.get_gathers(self.indices[pos.indices])))
+        if not isinstance(positions, DatasetIndex):
+            positions = DatasetIndex(positions)
+        batch = SeismicBatch(positions)
+        batch.add_components(component, init=self._get_gather_component(positions.indices))
         return batch
 
     # Visualization
