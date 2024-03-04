@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 from tqdm.auto import tqdm
-from batchflow import Pipeline
+from batchflow import Pipeline, DatasetIndex
 
 from .loader import Loader, DummyLoader, SEGYLoader
 from .batch import SeismicBatch
@@ -111,8 +111,8 @@ class Survey(SamplesContainer):
     def __lshift__(self, other):
         return self >> other
 
-    def gen_batch(self, batch_size, shuffle=False, n_iters=None, n_epochs=None, drop_last=False,
-                  notifier=False, iter_params=None, component=None):
+    def gen_batch(self, batch_size, shuffle=False, n_iters=None, n_epochs=None, drop_last=False, notifier=False,
+                  iter_params=None, component=None):
         if self.index is None:
             raise ValueError
         for indices in self.index.gen_batch(batch_size, shuffle, n_iters, n_epochs, drop_last, notifier, iter_params):
@@ -121,16 +121,18 @@ class Survey(SamplesContainer):
 
     def next_batch(self, batch_size, shuffle=False, n_iters=None, n_epochs=None, drop_last=False,
                    iter_params=None, component=None):
+        if self.index is None:
+            raise ValueError
         batch_index = self.index.next_batch(batch_size, shuffle, n_iters, n_epochs, drop_last, iter_params)
         return self.create_batch(batch_index, component=component)
 
-    def create_batch(self, index, component=None):
+    def create_batch(self, pos, component=None):
         if component is None:
             raise ValueError
-        batch = SeismicBatch(index)
-        batch.add_components(component, init=batch.array_of_nones)
-        for i, gather in enumerate(self.get_gathers(self.indices[index.indices])):
-            getattr(batch, component)[i] = gather
+        if not isinstance(pos, DatasetIndex):
+            pos = DatasetIndex(pos)
+        batch = SeismicBatch(pos)
+        batch.add_components(component, init=np.array(self.get_gathers(self.indices[pos.indices])))
         return batch
 
     # Visualization
