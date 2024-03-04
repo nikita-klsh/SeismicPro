@@ -1,4 +1,8 @@
 from functools import partial
+from queue import Queue
+from threading import Thread
+from concurrent.futures import ThreadPoolExecutor
+
 
 import numpy as np
 import pandas as pd
@@ -111,20 +115,51 @@ class Survey(SamplesContainer):
     def __lshift__(self, other):
         return self >> other
 
+    def _gen_batch_sequential(self, batch_size, shuffle=False, n_iters=None, n_epochs=None, drop_last=False,
+                              notifier=False, iter_params=None, component=None):
+        for pos in self.index.gen_batch(batch_size, shuffle, n_iters, n_epochs, drop_last, notifier, iter_params):
+            yield self.create_batch(pos, component=component)
+
+    def _gen_batch_parallel(self, batch_size, shuffle=False, n_iters=None, n_epochs=None, drop_last=False,
+                            notifier=False, iter_params=None, component=None, load_prefetch=None):
+        LAST_BATCH_SIGNAL = -1
+        batch_queue = Queue(load_prefetch)
+        batch_creator = ThreadPoolExecutor(max_workers=load_prefetch, thread_name_prefix="Batch-loader")
+
+        def create_batch():
+            pos_gen = self.index.gen_batch(batch_size, shuffle, n_iters, n_epochs, drop_last, notifier, iter_params)
+            for pos in pos_gen:
+                future = batch_creator.submit(self.create_batch, pos, component=component)
+                batch_queue.put(future, block=True)
+            batch_queue.put(LAST_BATCH_SIGNAL, block=True)
+        service_thread = Thread(target=create_batch, name="Batch-loader-service")
+        service_thread.start()
+
+        while True:
+            future = batch_queue.get(block=True)
+            if future == LAST_BATCH_SIGNAL:
+                break
+            yield future.result()
+
+        batch_creator.shutdown()
+        service_thread.join()
+
     def gen_batch(self, batch_size, shuffle=False, n_iters=None, n_epochs=None, drop_last=False, notifier=False,
-                  iter_params=None, component=None):
+                  iter_params=None, component=None, load_prefetch=0):
         if self.index is None:
             raise ValueError
-        for indices in self.index.gen_batch(batch_size, shuffle, n_iters, n_epochs, drop_last, notifier, iter_params):
-            batch = self.create_batch(indices, component=component)
-            yield batch
+        kwargs = {"batch_size": batch_size, "shuffle": shuffle, "n_iters": n_iters, "n_epochs": n_epochs,
+                  "drop_last": drop_last, "notifier": notifier, "iter_params": iter_params, "component": component}
+        if load_prefetch:
+            return self._gen_batch_parallel(load_prefetch=load_prefetch, **kwargs)
+        return self._gen_batch_sequential(**kwargs)
 
     def next_batch(self, batch_size, shuffle=False, n_iters=None, n_epochs=None, drop_last=False,
                    iter_params=None, component=None):
         if self.index is None:
             raise ValueError
-        batch_index = self.index.next_batch(batch_size, shuffle, n_iters, n_epochs, drop_last, iter_params)
-        return self.create_batch(batch_index, component=component)
+        pos = self.index.next_batch(batch_size, shuffle, n_iters, n_epochs, drop_last, iter_params)
+        return self.create_batch(pos, component=component)
 
     def create_batch(self, pos, component=None):
         if component is None:

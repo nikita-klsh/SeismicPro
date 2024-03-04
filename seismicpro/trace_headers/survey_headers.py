@@ -479,7 +479,6 @@ class SurveyTraceHeaders(TraceHeaders):
         if not inplace:
             self = self.clone()  # pylint: disable=self-cls-assignment
 
-        print("After clone")
         if indexed_by is not None:
             indexed_by = self._validate_columns(indexed_by)
             self.create_indexer(indexed_by)
