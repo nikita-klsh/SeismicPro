@@ -32,7 +32,8 @@ class Survey(SamplesContainer):
         self.loader = loader
 
         self._name = None
-        self.name = name
+        if name is not None:
+            self.name = name
 
     @property
     def name(self):
@@ -55,8 +56,8 @@ class Survey(SamplesContainer):
 
     @classmethod
     def from_segy_file(cls, path, header_cols, indexed_by=None, source_id_cols=None, receiver_id_cols=None,
-                       sample_interval=None, delay=0, limits=None, validate=True, endian="big", chunk_size=25000,
-                       n_workers=None, bar=True):
+                       sample_interval=None, delay=0, limits=None, validate=True, name=None, endian="big",
+                       chunk_size=25000, n_workers=None, bar=True):
         loader = SEGYLoader(path, sample_interval=sample_interval, delay=delay, limits=limits, endian=endian)
 
         header_cols = header_cols  # TODO: merge with indexed_by, source_id_cols and receiver_id_cols
@@ -65,7 +66,7 @@ class Survey(SamplesContainer):
         headers = loader.load_headers(header_cols, chunk_size=chunk_size, n_workers=n_workers, pbar=pbar)
         headers = SurveyTraceHeaders(headers, indexed_by=indexed_by, source_id_cols=source_id_cols,
                                      receiver_id_cols=receiver_id_cols, validate=validate)
-        return cls(headers, loader)
+        return cls(headers, loader, name=name)
 
     @classmethod
     def from_file(cls, path, *args, **kwargs):
@@ -167,7 +168,7 @@ class Survey(SamplesContainer):
         service_thread.join()
 
     def gen_batch(self, batch_size, shuffle=False, n_iters=None, n_epochs=None, drop_last=False, notifier=False,
-                  iter_params=None, component=None, load_prefetch=0):
+                  iter_params=None, component=None, load_prefetch=4):
         if self.index is None:
             raise ValueError
         kwargs = {"batch_size": batch_size, "shuffle": shuffle, "n_iters": n_iters, "n_epochs": n_epochs,
@@ -185,7 +186,9 @@ class Survey(SamplesContainer):
 
     def create_batch(self, pos, component=None):
         if component is None:
-            raise ValueError
+            if not self.has_name:
+                raise ValueError
+            component = self.name
         if not isinstance(pos, DatasetIndex):
             pos = DatasetIndex(pos)
         batch = SeismicBatch(pos)
