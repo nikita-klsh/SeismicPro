@@ -1,8 +1,6 @@
 from textwrap import wrap
 
-import numpy as np
 import polars as pl
-from sklearn.neighbors import RadiusNeighborsRegressor
 
 from .indexer import Indexer
 from ..utils import to_list
@@ -32,7 +30,7 @@ def isclose_polars(expr1, expr2, rtol=1e-5, atol=1e-8):
 
 
 # pylint: disable-next=too-many-statements
-def validate_trace_headers(headers, offset_atol=10, cdp_atol=10, elevation_atol=5, elevation_radius=50, warn_width=80):
+def validate_trace_headers(headers, offset_atol=10, cdp_atol=10, warn_width=80):
     """Validate trace headers for consistency and return either a string with found problems or `None` if all checks
     have successfully passed or no checks can been performed. `headers` is expected to be a `polars.DataFrame`."""
     if headers.is_empty():
@@ -131,35 +129,6 @@ def validate_trace_headers(headers, offset_atol=10, cdp_atol=10, elevation_atol=
             msg_list.append("A midpoint between source (SourceX, SourceY) and receiver (GroupX, GroupY) differs from "
                             f"the corresponding coordinates (CDP_X, CDP_Y) by more than {cdp_atol} meters for "
                             f"{n_not_close_cdp} traces ({(n_not_close_cdp / n_traces):.2%})")
-
-    if {*shot_coords_cols, "SourceSurfaceElevation"} <= non_empty_columns:
-        shot_elevations = headers.select(*shot_coords_cols, "SourceSurfaceElevation").unique(maintain_order=False)
-        is_duplicated_expr = (pl.col("SourceSurfaceElevation").count() > 1).alias("duplicated")
-        is_duplicated = shot_elevations.groupby(shot_coords_cols).agg(is_duplicated_expr)
-        n_duplicated = is_duplicated.select(pl.col("duplicated").sum()).item()
-        if n_duplicated:
-            msg_list.append(f"Non-unique surface elevation (SourceSurfaceElevation) for {n_duplicated} source "
-                            f"locations ({(n_duplicated / len(is_duplicated)):.2%})")
-
-    if {*rec_coords_cols, "ReceiverGroupElevation"} <= non_empty_columns:
-        rec_elevations = headers.select(*rec_coords_cols, "ReceiverGroupElevation").unique(maintain_order=False)
-        is_duplicated_expr = (pl.col("ReceiverGroupElevation").count() > 1).alias("duplicated")
-        is_duplicated = rec_elevations.groupby(rec_coords_cols).agg(is_duplicated_expr)
-        n_duplicated = is_duplicated.select(pl.col("duplicated").sum()).item()
-        if n_duplicated:
-            msg_list.append(f"Non-unique surface elevation (ReceiverGroupElevation) for {n_duplicated} receiver "
-                            f"locations ({(n_duplicated / len(is_duplicated)):.2%})")
-
-    if {*shot_coords_cols, *rec_coords_cols, "ReceiverGroupElevation", "SourceSurfaceElevation"} <= non_empty_columns:
-        elevations = np.concatenate([shot_elevations.to_numpy(), rec_elevations.to_numpy()]).astype(np.float32)
-        rnr = RadiusNeighborsRegressor(radius=elevation_radius).fit(elevations[:, :2], elevations[:, 2])
-        close_mask = np.isclose(rnr.predict(elevations[:, :2]), elevations[:, 2], rtol=0, atol=elevation_atol)
-        n_diff = (~close_mask).sum()
-        if n_diff:
-            msg_list.append("Surface elevations of sources (SourceSurfaceElevation) and receivers "
-                            f"(ReceiverGroupElevation) differ by more than {elevation_atol} meters within spatial "
-                            f"radius of {elevation_radius} meters for {n_diff} sensor locations "
-                            f"({(n_diff / len(elevations)):.2%})")
 
     if msg_list:
         return format_warning("The survey has the following inconsistencies in trace headers:", msg_list,

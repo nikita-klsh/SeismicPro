@@ -4,12 +4,13 @@ from functools import cached_property
 
 import numpy as np
 import pandas as pd
+from sklearn.neighbors import RadiusNeighborsRegressor
 
 from .trace_headers import TraceHeaders
 from .indexer import Indexer
 from .geometry import infer_geometry
 from .validation import (validate_trace_headers, calculate_source_headers, calculate_receiver_headers,
-                         calculate_bin_headers)
+                         calculate_bin_headers, format_warning)
 from ..utils import to_list
 from ..utils.interpolation import IDWInterpolator, DelaunayInterpolator, CloughTocherInterpolator, RBFInterpolator
 
@@ -52,7 +53,6 @@ class SurveyTraceHeaders(TraceHeaders):
 
         if validate:
             self.validate_headers()
-            self.create_default_elevation_interpolator()
 
         # Reindex after headers validation: an appropriate indexer may already have been created
         self.reindex(indexed_by, inplace=True)
@@ -250,6 +250,23 @@ class SurveyTraceHeaders(TraceHeaders):
         if warn_str is not None:
             warnings.warn(warn_str, RuntimeWarning)
 
+    # Geometry calculation
+
+    @cached_property
+    def geometry(self):
+        self.infer_geometry()
+        return self.geometry
+
+    def _infer_geometry(self, validate=True):
+        geometry, warn_str = infer_geometry(self.bin_headers, validate=validate)
+        self.__dict__["geometry"] = geometry
+        return warn_str
+
+    def infer_geometry(self, validate=True):
+        warn_str = self._infer_geometry(validate=validate)
+        if warn_str is not None:
+            warnings.warn(warn_str, RuntimeWarning)
+
     # Elevation interpolator calculation
 
     @property
@@ -293,67 +310,96 @@ class SurveyTraceHeaders(TraceHeaders):
         if use_source_headers:
             if not can_use_source_headers:
                 raise ValueError("Elevation-related headers of seismic sources are not loaded")
-            elevation_data_list.append(self.source_headers[source_elevation_headers].to_numpy())
+            elevation_data_list.append(self.source_headers[source_elevation_headers].to_numpy(dtype=np.float32))
         if use_receiver_headers:
             if not can_use_receiver_headers:
                 raise ValueError("Elevation-related headers of seismic receivers are not loaded")
-            elevation_data_list.append(self.receiver_headers[receiver_elevation_headers].to_numpy())
+            elevation_data_list.append(self.receiver_headers[receiver_elevation_headers].to_numpy(dtype=np.float32))
         return np.concatenate(elevation_data_list), use_source_headers, use_receiver_headers
 
-    def get_elevation_interpolator(self, interpolator, *, use_source_headers=None, use_receiver_headers=None,
-                                   **kwargs):
+    def _get_elevation_interpolator(self, interpolator, *, use_source_headers=None, use_receiver_headers=None,
+                                    validate=True, elevation_atol=5, elevation_radius=50, warn_width=80, **kwargs):
         res = self._get_elevation_data(use_source_headers, use_receiver_headers)
         elevation_data, uses_source_headers, uses_receiver_headers = res
         interpolator_class = self._get_elevation_interpolator_class(interpolator)
         interpolator = interpolator_class(elevation_data[:, :2], elevation_data[:, 2], **kwargs)
         interpolator.uses_source_headers = uses_source_headers
         interpolator.uses_receiver_headers = uses_receiver_headers
+
+        if validate:
+            rnr = RadiusNeighborsRegressor(radius=elevation_radius).fit(elevation_data[:, :2], elevation_data[:, 2])
+            close_mask = np.isclose(rnr.predict(elevation_data[:, :2]), elevation_data[:, 2],
+                                    rtol=0, atol=elevation_atol)
+            n_diff = (~close_mask).sum()
+            if n_diff:
+                warn_msg = ("Surface elevations of sources (SourceSurfaceElevation) and receivers "
+                            f"(ReceiverGroupElevation) differ by more than {elevation_atol} meters within spatial "
+                            f"radius of {elevation_radius} meters for {n_diff} sensor locations "
+                            f"({(n_diff / len(elevation_data)):.2%})")
+                warn_msg = format_warning(warn_msg, width=warn_width)
+            return interpolator, warn_msg
+        return interpolator, None
+
+    def get_elevation_interpolator(self, interpolator, *, use_source_headers=None, use_receiver_headers=None,
+                                   validate=True, elevation_atol=5, elevation_radius=50, **kwargs):
+        interpolator, warn_str = self._get_elevation_interpolator(interpolator, use_source_headers=use_source_headers,
+                                                                  use_receiver_headers=use_receiver_headers,
+                                                                  validate=validate, elevation_atol=elevation_atol,
+                                                                  elevation_radius=elevation_radius, **kwargs)
+        if warn_str is not None:
+            warnings.warn(warn_str, RuntimeWarning)
         return interpolator
 
-    def create_elevation_interpolator(self, interpolator, use_source_headers=None, use_receiver_headers=None,
-                                      **kwargs):
-        interpolator = self.get_elevation_interpolator(interpolator, use_source_headers=use_source_headers,
-                                                       use_receiver_headers=use_receiver_headers, **kwargs)
+    def _create_elevation_interpolator(self, interpolator, use_source_headers=None, use_receiver_headers=None,
+                                       validate=True, elevation_atol=5, elevation_radius=50, **kwargs):
+        interpolator, warn_str = self._get_elevation_interpolator(interpolator, use_source_headers=use_source_headers,
+                                                                  use_receiver_headers=use_receiver_headers,
+                                                                  validate=validate, elevation_atol=elevation_atol,
+                                                                  elevation_radius=elevation_radius, **kwargs)
         self.__dict__["elevation_interpolator"] = interpolator
+        return warn_str
 
-    def create_default_elevation_interpolator(self):
+    def create_elevation_interpolator(self, interpolator, use_source_headers=None, use_receiver_headers=None,
+                                      validate=True, elevation_atol=5, elevation_radius=50, **kwargs):
+        warn_str = self._create_elevation_interpolator(interpolator, use_source_headers=use_source_headers,
+                                                       use_receiver_headers=use_receiver_headers, validate=validate,
+                                                       elevation_atol=elevation_atol,
+                                                       elevation_radius=elevation_radius, **kwargs)
+        if warn_str is not None:
+            warnings.warn(warn_str, RuntimeWarning)
+
+    def _create_default_elevation_interpolator(self, validate=True, elevation_atol=5, elevation_radius=50):
         try:
-            self.create_elevation_interpolator("idw", neighbors=4)
+            interpolator, warn_str = self._get_elevation_interpolator("idw", neighbors=4, validate=validate,
+                                                                      elevation_atol=elevation_atol,
+                                                                      elevation_radius=elevation_radius)
         except ValueError:
-            self.__dict__["elevation_interpolator"] = None
+            interpolator, warn_str = None, None
+        self.__dict__["elevation_interpolator"] = interpolator
+        return warn_str
+
+    def create_default_elevation_interpolator(self, validate=True, elevation_atol=5, elevation_radius=50):
+        warn_str = self._create_default_elevation_interpolator(validate=validate, elevation_atol=elevation_atol,
+                                                               elevation_radius=elevation_radius)
+        if warn_str is not None:
+            warnings.warn(warn_str, RuntimeWarning)
 
     @cached_property
     def elevation_interpolator(self):
         self.create_default_elevation_interpolator()
         return self.elevation_interpolator
 
-    # Geometry calculation
-
-    @cached_property
-    def geometry(self):
-        self.infer_geometry()
-        return self.geometry
-
-    def _infer_geometry(self, validate=True):
-        geometry, warn_str = infer_geometry(self.bin_headers, validate=validate)
-        self.__dict__["geometry"] = geometry
-        return warn_str
-
-    def infer_geometry(self, validate=True):
-        warn_str = self._infer_geometry(validate=validate)
-        if warn_str is not None:
-            warnings.warn(warn_str, RuntimeWarning)
-
     # Headers validation
 
     def validate_headers(self, offset_atol=10, cdp_atol=10, elevation_atol=5, elevation_radius=50):
         warn_list = [
-            validate_trace_headers(self.headers_polars, offset_atol=offset_atol, cdp_atol=cdp_atol,
-                                   elevation_atol=elevation_atol, elevation_radius=elevation_radius),
+            validate_trace_headers(self.headers_polars, offset_atol=offset_atol, cdp_atol=cdp_atol),
             self._calculate_source_headers(validate=True),
             self._calculate_receiver_headers(validate=True),
             self._calculate_bin_headers(validate=True),
             self._infer_geometry(validate=True),
+            self._create_default_elevation_interpolator(validate=True, elevation_atol=elevation_atol,
+                                                        elevation_radius=elevation_radius),
         ]
         warn_list = [warn for warn in warn_list if warn is not None]
         if warn_list:
