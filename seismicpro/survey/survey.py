@@ -22,7 +22,7 @@ from ..decorators import delegate_calls
 @delegate_calls(Loader, "loader")
 @delegate_calls(SurveyTraceHeaders, "headers")
 class Survey(SamplesContainer):
-    def __init__(self, headers, loader=None):
+    def __init__(self, headers, loader=None, name=None):
         if isinstance(headers, (pd.DataFrame, pl.DataFrame)):
             headers = SurveyTraceHeaders(headers)
         self.headers = headers
@@ -30,6 +30,28 @@ class Survey(SamplesContainer):
         if loader is None:
             loader = DummyLoader()
         self.loader = loader
+
+        self._name = None
+        self.name = name
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        self.set_name(name)
+
+    @property
+    def has_name(self):
+        return self.name is not None
+
+    def set_name(self, name):
+        if not isinstance(name, str):
+            raise TypeError
+        if not name.isidentifier():
+            raise ValueError
+        self._name = name
 
     @classmethod
     def from_segy_file(cls, path, header_cols, indexed_by=None, source_id_cols=None, receiver_id_cols=None,
