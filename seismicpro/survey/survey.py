@@ -1486,7 +1486,7 @@ class Survey(GatherContainer, SamplesContainer):  # pylint: disable=too-many-ins
         return self._construct_map(self[col], metric=col, by=by, id_cols=id_cols, drop_duplicates=drop_duplicates,
                                    agg=agg, bin_size=bin_size)
 
-    def construct_fold_map(self, by, id_cols=None, agg=None, bin_size=None):
+    def construct_fold_map(self, by, id_cols=None, agg=None, bin_size=None, metric='fold'):
         """Construct a metric map which stores the number of traces for each gather (fold).
 
         Examples
@@ -1515,7 +1515,7 @@ class Survey(GatherContainer, SamplesContainer):  # pylint: disable=too-many-ins
         fold_map : BaseMetricMap
             Constructed fold map.
         """
-        tmp_map = self._construct_map(np.ones(self.n_traces), metric="fold", by=by, id_cols=id_cols, agg="sum")
+        tmp_map = self._construct_map(np.ones(self.n_traces), metric=metric, by=by, id_cols=id_cols, agg="sum")
         index = tmp_map.index_data[tmp_map.index_cols]
         coords = tmp_map.index_data[tmp_map.coords_cols]
         values = tmp_map.index_data[tmp_map.metric_name]

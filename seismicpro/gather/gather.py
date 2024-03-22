@@ -24,7 +24,7 @@ from ..utils import (to_list, get_coords_cols, get_first_defined, set_ticks, for
                      set_text_formatting, add_colorbar, piecewise_polynomial, Coordinates)
 from ..containers import TraceContainer, SamplesContainer
 from ..muter import Muter, MuterField
-from ..velocity_spectrum import VerticalVelocitySpectrum, ResidualVelocitySpectrum
+from ..velocity_spectrum import VerticalVelocitySpectrum, ResidualVelocitySpectrum, SlantStack
 from ..stacking_velocity import StackingVelocity, StackingVelocityField
 from ..refractor_velocity import RefractorVelocity, RefractorVelocityField
 from ..decorators import batch_method, plotter
@@ -750,8 +750,22 @@ class Gather(TraceContainer, SamplesContainer):
         return self
 
     #------------------------------------------------------------------------#
+    #             Dispersion Spectrum calculation method                     #
+    #------------------------------------------------------------------------#
+
+    @batch_method(target="threads", copy_src=False)
+    def calculate_dispersion_spectrum(self, velocities, fmax=None, spectrum_type='fv', complex_to_real=np.abs, **kwargs):
+        from ..surface_waves import DispersionSpectrum
+        return DispersionSpectrum.from_gather(self, velocities, fmax, spectrum_type, complex_to_real, **kwargs)
+
+    #------------------------------------------------------------------------#
     #             Vertical Velocity Spectrum calculation methods             #
     #------------------------------------------------------------------------#
+    
+    @batch_method(target="threads", copy_src=False)
+    def calculate_slant_stack(self, velocities):
+        return SlantStack.from_gather(self, velocities)
+
 
     @batch_method(target="for", args_to_unpack="stacking_velocity", copy_src=False)
     def calculate_vertical_velocity_spectrum(self, velocities=None, stacking_velocity=None, relative_margin=0.2,
@@ -820,7 +834,7 @@ class Gather(TraceContainer, SamplesContainer):
         vertical_velocity_spectrum : VerticalVelocitySpectrum
             Calculated vertical velocity spectrum.
         """
-        return VerticalVelocitySpectrum(gather=self, velocities=velocities, stacking_velocity=stacking_velocity,
+        return VerticalVelocitySpectrum.from_gather(gather=self, velocities=velocities, stacking_velocity=stacking_velocity,
                                         relative_margin=relative_margin, velocity_step=velocity_step,
                                         window_size=window_size, mode=mode, max_stretch_factor=max_stretch_factor,
                                         interpolate=interpolate)
@@ -880,7 +894,7 @@ class Gather(TraceContainer, SamplesContainer):
         residual_velocity_spectrum : ResidualVelocitySpectrum
             Calculated residual velocity spectrum.
         """
-        return ResidualVelocitySpectrum(gather=self, stacking_velocity=stacking_velocity,
+        return ResidualVelocitySpectrum.from_gather(gather=self, stacking_velocity=stacking_velocity,
                                         relative_margin=relative_margin, velocity_step=velocity_step,
                                         window_size=window_size, mode=mode, max_stretch_factor=max_stretch_factor,
                                         interpolate=interpolate)
@@ -950,6 +964,7 @@ class Gather(TraceContainer, SamplesContainer):
             self[to_list(event_headers)] += trace_delays.reshape(-1, 1)
         return self
 
+
     @batch_method(target="threads", args_to_unpack="stacking_velocity")
     def apply_nmo(self, stacking_velocity, max_stretch_factor=np.inf, interpolate=True, fill_value=np.nan):
         """Perform gather normal moveout correction using the given stacking velocity.
@@ -989,7 +1004,7 @@ class Gather(TraceContainer, SamplesContainer):
             stacking_velocity = np.float32(stacking_velocity / 1000)  # from m/s to m/ms
             self.data = correction.apply_constant_velocity_nmo(self.data, self.offsets, self.sample_interval,
                                                                self.delay, self.times, stacking_velocity,
-                                                               max_stretch_factor, interpolate, fill_value)
+                                                               interpolate, fill_value, max_stretch_factor)
             return self
 
         if isinstance(stacking_velocity, StackingVelocityField):

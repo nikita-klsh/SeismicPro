@@ -1,10 +1,14 @@
 """Utilities for processing of vertical functions"""
 
+from copy import deepcopy
+
 import numpy as np
+import matplotlib.pyplot as plt
 
 from .general_utils import to_list
 from .interpolation import interp1d
 from .coordinates import Coordinates
+from ..decorators import plotter, batch_method
 
 
 def read_vfunc(path, coords_cols=("INLINE_3D", "CROSSLINE_3D"), encoding="UTF-8"):
@@ -80,7 +84,7 @@ def read_single_vfunc(path, coords_cols=("INLINE_3D", "CROSSLINE_3D"), encoding=
     return file_data[0]
 
 
-def dump_vfunc(path, vfunc_list, encoding="UTF-8"):
+def dump_vfunc(path, vfunc_list, n_decimals=0, encoding="UTF-8"):
     """Dump vertical functions in Paradigm Echos VFUNC format to a file.
 
     Each passed VFUNC is a tuple with 3 elements: `coords`, `x` and `y`, where `coords` is an array-like with 2
@@ -112,7 +116,7 @@ def dump_vfunc(path, vfunc_list, encoding="UTF-8"):
             data = np.column_stack([x, y]).ravel()
             rows = np.split(data, np.arange(8, len(data), 8))
             for row in rows:
-                f.write("".join(f"{i:<8.0f}" for i in row) + "\n")
+                f.write("".join(f"{i:<8.{n_decimals}f}" for i in row) + "\n")
 
 
 class VFUNC:
@@ -130,6 +134,7 @@ class VFUNC:
         if coords is not None and not isinstance(coords, Coordinates):
             raise ValueError("coords must be either None or an instance of Coordinates")
         self.coords = coords
+        self.bounds = None
 
     def validate_data(self):
         """Validate whether `data_x` and `data_y` are 1d arrays of the same shape."""
@@ -190,7 +195,49 @@ class VFUNC:
         coords, data_x, data_y = read_single_vfunc(path, coords_cols=coords_cols, encoding=encoding)
         return cls(data_x, data_y, coords=coords)
 
-    def dump(self, path, encoding="UTF-8"):
+    @plotter(figsize=(7,5))
+    def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
+        ax.plot(self.data_y, self.data_x, **kwargs)
+        if self.bounds is not None and plot_bounds:
+            ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
+        if invert:
+            ax.invert_yaxis()
+
+    def copy(self):
+        return deepcopy(self)
+
+    @batch_method(target="for", copy_src=False)
+    def recalculate(self, start_x=None, end_x=None):
+        start_x = start_x or self.data_x.min()
+        end_x = end_x or self.data_x.max()
+        valid_x_mask = (self.data_x >= start_x) & (self.data_x <= end_x)
+        valid_x = np.sort(self.data_x[valid_x_mask])
+        new_x = np.concatenate([[start_x], valid_x, [end_x]])
+        self.data_x = new_x
+        self.data_y = self(new_x)
+        return self
+
+    @batch_method(target="for", copy_src=False)
+    def filter(self, start_x=None, end_x=None):
+        start_x = start_x or self.data_x.min()
+        end_x = end_x or self.data_x.max()
+        valid_x_mask = (self.data_x >= start_x) & (self.data_x <= end_x)
+        ix = np.argsort(self.data_x[valid_x_mask])
+        
+        self.data_x = self.data_x[valid_x_mask][ix]
+        self.data_y = self.data_y[valid_x_mask][ix]
+        return self
+
+    @batch_method(target="for", copy_src=False)
+    def resample(self, sample_interval):
+        new_x = np.arange(self.data_x.min(), self.data_x.max() + sample_interval, sample_interval)
+        new_y = self(new_x)
+        self.data_x = new_x
+        self.data_y = new_y
+        return self
+
+
+    def dump(self, path, n_decimals=0, encoding="UTF-8"):
         """Dump the vertical function to a file in Paradigm Echos VFUNC format.
 
         Notes
@@ -206,8 +253,17 @@ class VFUNC:
         """
         if not self.has_coords:
             raise ValueError("VFUNC instance can be dumped only if it has well-defined coordinates")
-        dump_vfunc(path, [(self.coords, self.data_x, self.data_y)], encoding=encoding)
+        dump_vfunc(path, [(self.coords, self.data_x, self.data_y)], n_decimals=n_decimals, encoding=encoding)
+    
 
     def __call__(self, data_x):
         """Evaluate the vertical function at given points."""
         return self.interpolator(data_x)
+
+    @plotter(figsize=(7,5))
+    def plot(self, ax=None, invert=True, plot_bounds=True, fill_area_color='g', alpha=0.2, **kwargs):
+        ax.plot(self.data_y, self.data_x, **kwargs)
+        if self.bounds is not None and plot_bounds:
+            ax.fill_betweenx(self.bounds[0].data_x, self.bounds[0].data_y, self.bounds[1].data_y, color=fill_area_color, alpha=alpha)
+        if invert and not ax.yaxis_inverted():
+            ax.invert_yaxis()

@@ -44,6 +44,7 @@ class BaseMetricMap:  # pylint: disable=too-many-instance-attributes
         self.coords_cols = coords_cols
         self.index_cols = index_cols
         self.agg = agg
+        self.map_agg = agg if agg!='std' else 'mean'
         self.requires_recalculation = True
         if calculate_immediately:
             self._recalculate()
@@ -349,7 +350,7 @@ class ScatterMap(BaseMetricMap):
         """Calculate metric map data by aggregating metric values of items with the same coordinates."""
         self._map_coords_to_indices = self._index_data.groupby(self.coords_cols)
         self._has_overlaying_indices = (self._map_coords_to_indices.size() > 1).any()
-        self._map_data = self._map_coords_to_indices[self.metric_name].agg(self.agg)
+        self._map_data = self._map_coords_to_indices[self.metric_name].agg(self.map_agg)
 
     def _plot_map(self, ax, is_lower_better, **kwargs):
         """Display map data as a scatter plot."""
@@ -363,7 +364,7 @@ class ScatterMap(BaseMetricMap):
         coords_x, coords_y = map_data.index.to_frame(index=False).to_numpy().T
         ax.set_xlim(*calculate_axis_limits(coords_x))
         ax.set_ylim(*calculate_axis_limits(coords_y))
-        return ax.scatter(coords_x, coords_y, c=map_data, **kwargs)
+        return ax.scatter(coords_x, coords_y, **{**dict(c=map_data), **kwargs})
 
 
 class BinarizedMap(BaseMetricMap):

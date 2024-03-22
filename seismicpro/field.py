@@ -608,7 +608,7 @@ class VFUNCFieldMixin:
         items = [cls.item_class(data_x, data_y, coords=coords) for coords, data_x, data_y in vfunc_data]
         return cls(items, survey=survey, auto_create_interpolator=auto_create_interpolator)
 
-    def dump(self, path, encoding="UTF-8"):
+    def dump(self, path, n_decimals=0, encoding="UTF-8"):
         """Dump all items of the field to a file in Paradigm Echos VFUNC format.
 
         Notes
@@ -623,4 +623,4 @@ class VFUNCFieldMixin:
             File encoding.
         """
         vfunc_data = [(coords, item.data_x, item.data_y) for coords, item in self.item_container.items()]
-        dump_vfunc(path, vfunc_data, encoding=encoding)
+        dump_vfunc(path, vfunc_data, n_decimals=n_decimals, encoding=encoding)

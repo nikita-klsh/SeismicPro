@@ -15,13 +15,14 @@ from .index import SeismicIndex
 from .gather import Gather, CroppedGather
 from .gather.utils.crop_utils import make_origins
 from .velocity_spectrum import VerticalVelocitySpectrum, ResidualVelocitySpectrum
+from .surface_waves import DispersionSpectrum, DispersionCurve
 from .field import Field
 from .metrics import define_pipeline_metric
 from .decorators import create_batch_methods, apply_to_each_component
-from .utils import to_list, align_src_dst, as_dict, save_figure
+from .utils import to_list, align_src_dst, as_dict, save_figure, VFUNC
 
 
-@create_batch_methods(Gather, CroppedGather, VerticalVelocitySpectrum, ResidualVelocitySpectrum)
+@create_batch_methods(Gather, CroppedGather, VerticalVelocitySpectrum, ResidualVelocitySpectrum, DispersionSpectrum, DispersionCurve, VFUNC)
 class SeismicBatch(Batch):
     """A batch class for seismic data that allows for joint and simultaneous processing of small subsets of seismic
     gathers in a parallel way.
