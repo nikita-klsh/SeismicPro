@@ -97,7 +97,7 @@ class Loader(SamplesContainer):
     def clone(self):
         raise NotImplementedError
 
-    def load_traces(self, headers, limits=None, buffer=None, return_samples_info=False):
+    def load_traces(self, headers, limits=None, buffer=None, return_samples_info=False, **kwargs):
         _ = headers, limits, buffer, return_samples_info
         raise NotImplementedError
 
@@ -121,16 +121,7 @@ class DummyLoader(Loader):
         return buffer
 
 
-class SEGYLoader(Loader):
-    def __init__(self, path, *, sample_interval=None, delay=0, limits=None, endian="big"):
-        self.path = path
-        self.loader = MemmapLoader(path, endian=endian)
-        sample_interval = get_first_defined(sample_interval, self.loader.sample_interval / 1000)
-        super().__init__(n_samples=self.loader.n_samples, sample_interval=sample_interval, delay=delay, limits=limits)
-
-    def clone(self):
-        return type(self)(path=self.path, sample_interval=self.file_sample_interval, delay=self.file_delay,
-                          limits=self.limits, endian=self.loader.endian)
+class ChunkLoader(Loader):
 
     def load_traces(self, headers, limits=None, buffer=None, chunk_size=None, n_workers=None,
                     return_samples_info=False):
@@ -152,15 +143,85 @@ class SEGYLoader(Loader):
 
         limits, n_samples, sample_interval, delay = self._get_limits_info(get_first_defined(limits, self.limits))
         if buffer is None:
-            buffer = np.empty((len(indices), n_samples), dtype=self.loader.dtype)
+            buffer = np.empty((len(indices), n_samples), dtype=self.dtype)
 
         with executor_class(max_workers=n_workers) as pool:
             for start, end in zip(chunk_borders[:-1], chunk_borders[1:]):
-                pool.submit(self.loader.load_traces, indices[start:end], limits=limits, buffer=buffer[start:end])
+                pool.submit(self.load_chunk_of_traces, indices[start:end], limits=limits, buffer=buffer, start=start, end=end)
 
         if return_samples_info:
             return buffer, sample_interval, delay
         return buffer
 
+
+class SEGYLoader(ChunkLoader):
+    def __init__(self, path, *, sample_interval=None, delay=0, limits=None, endian="big"):
+        self.path = path
+        self.loader = MemmapLoader(path, endian=endian)
+        self.dtype = self.loader.dtype
+        sample_interval = get_first_defined(sample_interval, self.loader.sample_interval / 1000)
+        super().__init__(n_samples=self.loader.n_samples, sample_interval=sample_interval, delay=delay, limits=limits)
+
+
+    def load_chunk_of_traces(self, indices, limits=None, buffer=None, start=None, end=None):
+        limits = self.loader.process_limits(limits)
+
+        if self.loader.file_format != 1:
+            traces = self.loader.data_mmap[indices, limits]
+        else:
+            traces = self.loader.data_mmap[indices, limits.start:limits.stop]
+            if limits.step != 1:
+                traces = traces[:, ::limits.step]
+            traces = self.loader._ibm_to_ieee(traces)
+
+        if buffer is None:
+            return np.require(traces, dtype=self.loader.dtype, requirements='C')
+
+        buffer[start:end] = traces
+        return buffer
+    
+    def clone(self):
+        return type(self)(path=self.path, sample_interval=self.file_sample_interval, delay=self.file_delay,
+                          limits=self.limits, endian=self.loader.endian)
+    
     def load_headers(self, headers, *args, **kwargs):
         return self.loader.load_headers(headers, *args, **kwargs)
+
+
+class HDF5Loader(ChunkLoader):
+    def __init__(self, file, *, n_samples=None, sample_interval=None, delay=0, limits=None):
+        n_traces, n_samples = file['data'].shape
+        self.dtype = file['data'].dtype
+        self.data_mmap = np.memmap(file.filename, dtype=self.dtype, offset=file['data'].id.get_offset(), shape=(n_traces, n_samples))
+        super().__init__(n_samples=n_samples, sample_interval=sample_interval, delay=delay, limits=limits)
+
+    def load_chunk_of_traces(self, indices, limits=None, buffer=None, start=None, end=None):
+        limits = self._process_limits(limits)
+        traces = self.data_mmap[indices, limits]
+
+        if buffer is None:
+            return np.require(traces, dtype=self.dtype, requirements='C')
+
+        buffer[start:end] = traces
+        return buffer
+
+
+class NPZLoader(ChunkLoader):
+    def __init__(self, file, *, n_samples=None, sample_interval=None, delay=0, limits=None):
+        file.fp.seek(file.open('data.npy')._fileobj.tell())
+        version = np.lib.format.read_magic(file.fp)
+        np.lib.format._check_version(version)
+        shape, _, dtype = np.lib.format._read_array_header(file.fp, version)
+        self.dtype = dtype
+        self.data_mmap = np.memmap(file.filename, dtype=dtype, shape=shape, order='C', mode='r', offset=file.fp.tell())
+        super().__init__(n_samples=shape[1], sample_interval=sample_interval, delay=delay, limits=limits)
+
+    def load_chunk_of_traces(self, indices, limits=None, buffer=None, start=None, end=None):
+        limits = self._process_limits(limits)
+        traces = self.data_mmap[indices, limits]
+
+        if buffer is None:
+            return np.require(traces, dtype=self.dtype, requirements='C')
+
+        buffer[start:end] = traces
+        return buffer

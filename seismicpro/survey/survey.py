@@ -4,13 +4,14 @@ from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 
 
+import h5py
 import numpy as np
 import pandas as pd
 import polars as pl
 from tqdm.auto import tqdm
 from batchflow import Pipeline, DatasetIndex
 
-from .loader import Loader, DummyLoader, SEGYLoader
+from .loader import Loader, DummyLoader, SEGYLoader, HDF5Loader, NPZLoader
 from .batch import SeismicBatch
 from .plot_geometry import SurveyGeometryPlot
 from ..gather import Gather
@@ -67,6 +68,62 @@ class Survey(SamplesContainer):
         headers = SurveyTraceHeaders(headers, indexed_by=indexed_by, source_id_cols=source_id_cols,
                                      receiver_id_cols=receiver_id_cols, validate=validate)
         return cls(headers, loader, name=name)
+
+    def to_hdf5(self, path, chunk_size=1000):
+        file = h5py.File(path, 'w')
+        file.attrs['sample_interval'] = self.sample_interval
+        file.attrs['delay'] = self.delay
+        buffer = file.create_dataset('data', shape=(self.n_traces, self.n_samples), dtype=self.loader.loader.dtype)
+        self.load_traces(self.headers.headers, chunk_size=chunk_size, buffer=buffer)
+        file.create_dataset('headers', data=self.headers.headers.to_records(index=False))
+        file.close()
+        return self
+    
+    @classmethod
+    def from_hdf5(cls, path, header_cols, indexed_by=None, source_id_cols=None, receiver_id_cols=None,
+                  limits=None, validate=True, name=None):
+        file = h5py.File(path, 'r')
+        loader = HDF5Loader(file, sample_interval=file.attrs['sample_interval'], delay=file.attrs['delay'], limits=limits)
+        headers = pd.DataFrame.from_records(file['headers'][:])
+        headers = SurveyTraceHeaders(headers, indexed_by=indexed_by, source_id_cols=source_id_cols,
+                                     receiver_id_cols=receiver_id_cols, validate=validate)
+        file.close()
+        return cls(headers, loader, name=name)
+
+    def to_npz(self, path, chunk_size=1000):
+        import zipfile
+        np.savez(path, headers=self.headers.headers.to_records(), sample_interval=self.sample_interval, delay=self.delay)
+        with zipfile.ZipFile(path, 'a') as zf:
+            with zf.open('data.npy', 'w', force_zip64=True) as fp:
+                    header = {"shape": (self.n_traces, self.n_samples), "fortran_order": False, "descr": "f4"}
+                    np.lib.format._write_array_header(fp, header)
+
+                    indices = self["TRACE_SEQUENCE_FILE"] - 1
+
+                    n_chunks, last_chunk_size = divmod(len(indices), chunk_size)
+                    chunk_sizes = [chunk_size] * n_chunks
+                    if last_chunk_size:
+                        n_chunks += 1
+                        chunk_sizes += [last_chunk_size]
+                    chunk_borders = np.cumsum([0] + chunk_sizes)
+
+                    for start, end in tqdm(zip(chunk_borders[:-1], chunk_borders[1:])):
+                        traces = self.loader.loader.load_traces(indices[start:end])
+                        fp.write(traces.tobytes('C'))
+
+        return self
+
+
+    @classmethod
+    def from_npz(cls, path, header_cols, indexed_by=None, source_id_cols=None, receiver_id_cols=None,
+                  limits=None, validate=True, name=None):
+        file = np.load(path)
+        loader = NPZLoader(file.zip, sample_interval=file['sample_interval'].item(), delay=file['delay'].item(), limits=limits)
+        headers = pd.DataFrame.from_records(file['headers'][:])
+        headers = SurveyTraceHeaders(headers, indexed_by=indexed_by, source_id_cols=source_id_cols,
+                                     receiver_id_cols=receiver_id_cols, validate=validate)
+        file.close()
+        return cls(headers, loader, name=name)                            
 
     @classmethod
     def from_file(cls, path, *args, **kwargs):
